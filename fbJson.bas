@@ -1,34 +1,18 @@
-enum jsonType
-	malformed = -1
-	object
-	array
-	number
-	strng
-	bool
-	null
-end enum
+#include once "fbJsonItem.bi"
+
 
 enum parserState
 	none = -1
-	jkey = 0
-	jvalue
-	jstring
-	jarray
-	jarrayValue
-	jarrayClosed
-	jobject
-	jobjectClosed
+	keyToken = 0
+	valueToken
+	stringToken
+	arrayToken
+	arrayTokenClosed
+	objectToken
+	objectTokenClosed
 end enum
 
-type jsonItem
-	parent as jsonItem ptr
-	key as string
-	value as string
-	
-	innerText as string
-	children(any) as jsonItem ptr
-	values(any) as string
-end type
+
 
 declare function parseObject(byref jsonString as string, startIndex as integer, endIndex as integer) as jsonItem ptr
 
@@ -55,19 +39,17 @@ sub WriteParserError(byref jsonString as string, index as integer, state as pars
 	next
 	dim as string message = "Error unexpected token '"+ chr(jsonString[index]) + "' in line "& lineNumber &" [ "
 	select case state
-	case jvalue
+	case valueToken
 		message += "value"
-	case jstring
+	case stringToken
 		message += "string"
-	case jarray
+	case arrayToken
 		message += "array"
-	case jarrayValue
-		message += "array value"
-	case jarrayClosed
+	case arrayTokenClosed
 		message += "array closed"
-	case jobject
+	case objectToken
 		message += "object"
-	case jobjectClosed
+	case objectTokenClosed
 		message += "object closed"
 	end select
 	message += " ] from " & chr(jsonString[stateStart])
@@ -75,7 +57,7 @@ sub WriteParserError(byref jsonString as string, index as integer, state as pars
 end sub
 
 function parseObject(byref jsonString as string, startIndex as integer, endIndex as integer) as jsonItem ptr
-	dim as jsonItem ptr token = new jsonItem()
+	dim as jsonItem ptr item = new jsonItem()
 	dim as parserState state = none
 	dim as jsonItem ptr child
 	dim as integer stateStart
@@ -86,26 +68,21 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 		select case chr(jsonString[i])
 			case ":":
 				if ( stringOpen = false) then
-					if (state = jKey) then
+					if (state = keyToken) then
 						child = new jsonItem
 						child->Key = mid(jsonString, stateStart, i+1 - stateStart)  
-						state = jValue
+						state = valueToken
 						stateStart = i+2
-					elseif (state <> jObject) then
+					elseif (state <> objectToken) then
 						WriteParserError(jsonString, i, state, stateStart)
 					end if
 				end if
 			case ",":
 				if (stringOpen = false) then
-					if (state = jValue OR state = jString) then
-						token->value = mid(jsonString, stateStart, i+1 - stateStart)
-					elseif (state = jArrayValue) then
-						dim as string value = mid(jsonString, stateStart, i+1 - stateStart)
-						redim preserve token->values(ubound(token->values)+1)
-						token->values(ubound(token->values)) = value
-						state = jArray
+					if (state = valueToken OR state = stringToken) then
+						item->value = mid(jsonString, stateStart, i+1 - stateStart)
 					end if
-					if (state <> jobject and state <> jArray ) then
+					if (state <> objectToken and state <> arrayToken ) then
 						stateStart = i
 						state = none
 					end if
@@ -115,97 +92,91 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 					stringOpen = not(stringOpen)
 					if (stringOpen = true) then
 						if (state = none ) then 
-							state = jKey
+							state = keyToken
 							stateStart = i+1
-						elseif (state = jValue) then
-							state = jString
-							stateStart = i+1
-						elseif (state = jArray) then
-							state = jArrayValue
+						elseif (state = valueToken) then
+							state = stringToken
 							stateStart = i+1
 						end if
 					end if
+				else
+					escaped = false
 				end if
 			case "\":
 				escaped = true
 			case "{":
 				if (not stringOpen) then
-					if ( state = jValue ) then
-						state = jObject
+					if ( state = valueToken ) then
+						state = objectToken
 						stateStart = i+1
 					end if
 				end if
 			case "}"
 				if (stringOpen = false) then
-					if ( state = jObject ) then
-						state = jObjectClosed
+					if ( state = objectToken ) then
+						state = objectTokenClosed
 						child = parseObject(jsonString, stateStart, i)
 						
-						redim token->children(ubound(child->children))
+						redim item->children(ubound(child->children))
 						for i as integer = 0 to ubound(child->children)
-							token->children(i) = child->children(i)
+							item->children(i) = child->children(i)
 						next
 						delete(child)
 						child = 0
-					elseif (state <> jvalue and state <> jString) then
+					elseif (state <> valueToken and state <> stringToken) then
 						WriteParserError(jsonString, i, state, stateStart)
 					end if
 				end if
 			case "[":
 				if (stringOpen = false) then
-					if (state = jvalue) then	
-						state = jArray
-					elseif (state < jArray) then
+					if (state = valueToken) then	
+						state = arrayToken
+					elseif (state < arrayToken) then
 						WriteParserError(jsonString, i, state, stateStart)
 					end if
 				end if
 			case "]":
 				if (stringOpen = false) then
-					if (state = jArray) then
-						state = jValue
-					elseif (state = jArrayValue) then
-						dim as string value = mid(jsonString, stateStart, i - stateStart)
-						redim preserve token->values(ubound(token->values)+1)
-						token->values(ubound(token->values)) = value
-						state = jValue
+					if (state = arrayToken) then
+						state = valueToken
 					end if
 				end if
 		end select
 		
 		if (i = endIndex) then
-			if (state = jValue OR state = jString) then
-				token->value = mid(jsonString, stateStart, i-2 - stateStart)
+			if (state = valueToken OR state = stringToken) then
+				item->value = mid(jsonString, stateStart, i-2 - stateStart)
 			else
 				WriteParserError(jsonString, stateStart, state, stateStart)
 			end if
 		end if
 		
 		if ( child <> 0 ) then
-			redim preserve token->children(ubound(token->children)+1)
-			token->children(ubound(token->children)) = child
-			child->parent = token
-			token = child
+			redim preserve item->children(ubound(item->children)+1)
+			item->children(ubound(item->children)) = child
+			child->parent = item
+			item = child
 			child = 0
 		end if
 		
 		if (state = none) then
-			if (token->parent <> 0) then
-				token = token->parent	
+			if (item->parent <> 0) then
+				item = item->parent	
 			end if
 		end if
 	next
 	
-	if (token->parent <> 0) then
-		token = token->parent
+	if (item->parent <> 0) then
+		item = item->parent
 	end if
-	return token
+	return item
 end function
 
 for i as integer = 0 to ubound(token->children)
-	? token->children(i)->key & " : " & token->children(i)->value
+	? "item: "& token->children(i)->key & " = " & token->children(i)->value
 	if ubound(token->children(i)->children) >= 0 then
 		for j as integer = 0 to ubound(token->children(i)->children)
-			? "    " & token->children(i)->children(j)->key & " : " & token->children(i)->children(j)->value
+			? "    item: " & token->children(i)->children(j)->key & " = " & token->children(i)->children(j)->value
 		next
 	end if
 next

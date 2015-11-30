@@ -15,12 +15,10 @@ I do not recommend yet.
 
 1) Bring the whole thing into a usable form.
 
-1a) Add type-information to the items.
-
 1b) Have a jsonDocument for the root nodes and jsonItems for everything beneath.
 
 1c) Neat way to access children and values
 
-2) Fix issues with objects in arrays / rethink how arrays are stored.
+2) Make arrays useable again
 
 3) Fix style and naming.

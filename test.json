@@ -5,7 +5,7 @@
   "Waehrung": "EURO",
   "Inhaber": {
     "Name": "Mustermann",
-    "Vorname": "Max",
+    "Vorname": "\"Max\"",
     "maennlich": true,
     "Hobbys": [ "Reiten", "Golfen", "Lesen" ],
     "Alter": 42,
