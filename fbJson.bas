@@ -32,37 +32,17 @@ trim(jsonFile, chr(10))
 
 dim as jsonItem ptr token = parseObject(jsonFile, 1, len(jsonFile))
 
-sub WriteParserError(byref jsonString as string, index as integer, state as parserState, stateStart as integer )
-	dim as integer lineNumber = 1
-	for i as integer = 0 to index
-		if (jsonString[i] = 10) then lineNumber +=1
-	next
-	dim as string message = "Error unexpected token '"+ chr(jsonString[index]) + "' in line "& lineNumber &" [ "
-	select case state
-	case valueToken
-		message += "value"
-	case stringToken
-		message += "string"
-	case arrayToken
-		message += "array"
-	case arrayTokenClosed
-		message += "array closed"
-	case objectToken
-		message += "object"
-	case objectTokenClosed
-		message += "object closed"
-	end select
-	message += " ] from " & chr(jsonString[stateStart])
-	print message
-end sub
+
 
 function parseObject(byref jsonString as string, startIndex as integer, endIndex as integer) as jsonItem ptr
 	dim as jsonItem ptr item = new jsonItem()
 	dim as parserState state = none
 	dim as jsonItem ptr child
+	dim as boolean errorOccured = false
 	dim as integer stateStart
 	dim as boolean escaped = false
 	dim as boolean stringOpen = false
+	dim as integer tokenCount = 0
 
 	for i as integer = startIndex to endIndex
 		select case chr(jsonString[i])
@@ -74,7 +54,7 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 						state = valueToken
 						stateStart = i+2
 					elseif (state <> objectToken) then
-						WriteParserError(jsonString, i, state, stateStart)
+						errorOccured = true
 					end if
 				end if
 			case ",":
@@ -106,14 +86,17 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 				escaped = true
 			case "{":
 				if (not stringOpen) then
-					if ( state = valueToken ) then
+					if ( state = valueToken or state = arrayToken ) then
 						state = objectToken
 						stateStart = i+1
+						
+					elseif (state = objectToken) then
+						tokenCount += 1 
 					end if
 				end if
 			case "}"
 				if (stringOpen = false) then
-					if ( state = objectToken ) then
+					if ( state = objectToken  and tokenCount = 0) then
 						state = objectTokenClosed
 						child = parseObject(jsonString, stateStart, i)
 						
@@ -123,8 +106,10 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 						next
 						delete(child)
 						child = 0
+					elseif (state = objectToken ) then
+						tokenCount -=1
 					elseif (state <> valueToken and state <> stringToken) then
-						WriteParserError(jsonString, i, state, stateStart)
+						errorOccured = true
 					end if
 				end if
 			case "[":
@@ -132,7 +117,7 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 					if (state = valueToken) then	
 						state = arrayToken
 					elseif (state < arrayToken) then
-						WriteParserError(jsonString, i, state, stateStart)
+						errorOccured = true
 					end if
 				end if
 			case "]":
@@ -147,7 +132,7 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 			if (state = valueToken OR state = stringToken) then
 				item->value = mid(jsonString, stateStart, i-2 - stateStart)
 			else
-				WriteParserError(jsonString, stateStart, state, stateStart)
+				errorOccured = true
 			end if
 		end if
 		
@@ -159,13 +144,32 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 			child = 0
 		end if
 		
+		if ( errorOccured ) then			
+			dim as integer lineNumber = 1
+			dim as integer position = 1
+			for i as integer = 0 to endIndex
+				if (jsonString[i] = 10) then
+					lineNumber +=1
+					position = 1
+				end if
+				position +=1
+			next
+			
+			if (stringOpen) then
+				print "fbJSON Error: Expected closing quote, found: "+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+			else
+				print "fbJSON Error: Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+			end if
+			exit for
+		end if
+		
 		if (state = none) then
 			if (item->parent <> 0) then
 				item = item->parent	
 			end if
 		end if
 	next
-	
+		
 	if (item->parent <> 0) then
 		item = item->parent
 	end if

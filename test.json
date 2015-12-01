@@ -10,7 +10,10 @@
     "Hobbys": [ "Reiten", "Golfen", "Lesen" ],
     "Alter": 42,
     "Kinder": [],
-    "Partner": null
+    "Partner": {
+		"Name": "Mustermann",
+		"Vorname": "Gertrude"
+		}
   },
   "Foo": "Bar"
 }
