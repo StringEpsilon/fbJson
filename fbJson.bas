@@ -46,87 +46,84 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 
 	for i as integer = startIndex to endIndex
 		select case chr(jsonString[i])
-			case ":":
-				if ( stringOpen = false) then
-					if (state = keyToken) then
-						child = new jsonItem
-						child->Key = mid(jsonString, stateStart, i+1 - stateStart)  
-						state = valueToken
-						stateStart = i+2
-					elseif (state <> objectToken) then
-						errorOccured = true
+		case """":
+			if (not escaped) then
+				stringOpen = not(stringOpen)
+				if (stringOpen = true) then
+					if (state = none ) then 
+						state = keyToken
+						stateStart = i+1
+					elseif (state = valueToken) then
+						state = stringToken
+						stateStart = i+1
 					end if
+				end if
+			else
+				escaped = false
+			end if
+		case "\":
+			if (stringOpen ) then
+				escaped = true
+			else
+				errorOccured = true
+			end if
+		end select
+		
+		if (stringOpen = false) then
+			select case chr(jsonString[i])
+			case ":":
+				if (state = keyToken) then
+					child = new jsonItem
+					child->Key = mid(jsonString, stateStart, i+1 - stateStart)  
+					state = valueToken
+					stateStart = i+2
+				elseif (state <> objectToken) then
+					errorOccured = true
 				end if
 			case ",":
-				if (stringOpen = false) then
-					if (state = valueToken OR state = stringToken) then
-						item->value = mid(jsonString, stateStart, i+1 - stateStart)
-					end if
-					if (state <> objectToken and state <> arrayToken ) then
-						stateStart = i
-						state = none
-					end if
+				if (state = valueToken OR state = stringToken) then
+					item->value = mid(jsonString, stateStart, i+1 - stateStart)
 				end if
-			case """":
-				if (not escaped) then
-					stringOpen = not(stringOpen)
-					if (stringOpen = true) then
-						if (state = none ) then 
-							state = keyToken
-							stateStart = i+1
-						elseif (state = valueToken) then
-							state = stringToken
-							stateStart = i+1
-						end if
-					end if
-				else
-					escaped = false
+				if (state <> objectToken and state <> arrayToken ) then
+					stateStart = i
+					state = none
 				end if
-			case "\":
-				escaped = true
 			case "{":
-				if (not stringOpen) then
-					if ( state = valueToken or state = arrayToken ) then
-						state = objectToken
-						stateStart = i+1
-						
-					elseif (state = objectToken) then
-						tokenCount += 1 
-					end if
+				if ( state = valueToken or state = arrayToken ) then
+					state = objectToken
+					stateStart = i+1
+					
+				elseif (state = objectToken) then
+					tokenCount += 1 
 				end if
 			case "}"
-				if (stringOpen = false) then
-					if ( state = objectToken  and tokenCount = 0) then
-						state = objectTokenClosed
-						child = parseObject(jsonString, stateStart, i)
-						
-						redim item->children(ubound(child->children))
-						for i as integer = 0 to ubound(child->children)
-							item->children(i) = child->children(i)
-						next
-						delete(child)
-						child = 0
-					elseif (state = objectToken ) then
-						tokenCount -=1
-					elseif (state <> valueToken and state <> stringToken) then
-						errorOccured = true
-					end if
+				if ( state = objectToken  and tokenCount = 0) then
+					state = objectTokenClosed
+					child = parseObject(jsonString, stateStart, i)
+					
+					redim item->children(ubound(child->children))
+					for i as integer = 0 to ubound(child->children)
+						item->children(i) = child->children(i)
+					next
+					delete(child)
+					child = 0
+				elseif (state = objectToken ) then
+					tokenCount -=1
+				elseif (state <> valueToken and state <> stringToken) then
+					errorOccured = true
 				end if
 			case "[":
-				if (stringOpen = false) then
-					if (state = valueToken) then	
-						state = arrayToken
-					elseif (state < arrayToken) then
-						errorOccured = true
-					end if
+				if (state = valueToken) then	
+					state = arrayToken
+				elseif (state < arrayToken) then
+					errorOccured = true
 				end if
 			case "]":
-				if (stringOpen = false) then
-					if (state = arrayToken) then
-						state = valueToken
-					end if
+				if (state = arrayToken) then
+					state = valueToken
 				end if
-		end select
+			end select
+		end if
 		
 		if (i = endIndex) then
 			if (state = valueToken OR state = stringToken) then
