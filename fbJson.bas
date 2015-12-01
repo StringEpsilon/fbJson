@@ -30,7 +30,7 @@ open "test.json" for input as #ff
 close #ff
 trim(jsonFile, chr(10))
 
-dim as jsonItem ptr token = parseObject(jsonFile, 1, len(jsonFile))
+dim as jsonItem token = *parseObject(jsonFile, 1, len(jsonFile))
 
 
 
@@ -173,11 +173,11 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 	return item
 end function
 
-for i as integer = 0 to ubound(token->children)
-	? "item: "& token->children(i)->key & " = " & token->children(i)->value
-	if ubound(token->children(i)->children) >= 0 then
-		for j as integer = 0 to ubound(token->children(i)->children)
-			? "    item: " & token->children(i)->children(j)->key & " = " & token->children(i)->children(j)->value
+for i as integer = 0 to ubound(token.children)
+	? i, token[i].key & " = " & token[i].value
+	if ubound(token.children(i)->children) >= 0 then
+		for j as integer = 0 to ubound(token.children(i)->children)
+			? ,j, token[i][j].key & " = " & token[i][j].value
 		next
 	end if
 next

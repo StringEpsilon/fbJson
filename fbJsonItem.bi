@@ -24,12 +24,25 @@ type jsonItem extends object
 		declare property Value(newValue as string)
 		declare property Value() as string
 		declare property DataType() as jsonDataType
-		declare operator [](key as string) as jsonItem ptr
+		declare operator [](key as string) as jsonItem
+		declare operator [](index as integer) as  jsonItem
 end type
 
-operator jsonItem.[](key as string) as jsonItem ptr
-	
-	return 0
+operator jsonItem.[](key as string) as jsonItem	
+	for i as integer = 0 to ubound(this.children)
+		if ( this.children(i)->key = key ) then
+			return *this.children(i)
+		end if
+	next
+	return type<jsonItem>()
+end operator
+
+operator jsonItem.[](index as integer) as jsonItem
+	if ( index <= ubound(this.children) ) then
+		return *this.children(index)
+	end if
+	? "error accessing child"
+	return type<jsonItem>()
 end operator
 
 property jsonItem.Value( newValue as string)
