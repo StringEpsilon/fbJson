@@ -74,7 +74,7 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 			case ":":
 				if (state = keyToken) then
 					child = new jsonItem
-					child->Key = mid(jsonString, stateStart, i+1 - stateStart)  
+					child->Key = trim(mid(jsonString, stateStart, i+1 - stateStart), any " """)  
 					state = valueToken
 					stateStart = i+2
 				elseif (state <> objectToken) then
@@ -173,6 +173,14 @@ function parseObject(byref jsonString as string, startIndex as integer, endIndex
 	return item
 end function
 
+' Access via key:
+print token["Foo"].value
+' Even accross multiple levels.
+print "Inhaber Name: " & token["Inhaber"]["Name"].value
+print
+print
+
+' Access via index:
 for i as integer = 0 to ubound(token.children)
 	? i, token[i].key & " = " & token[i].value
 	if ubound(token.children(i)->children) >= 0 then

@@ -10,7 +10,7 @@ end enum
 
 type jsonItem extends object
 	private:
-		_dataType as jsonDataType 
+		_dataType as jsonDataType = null
 		_value as string
 		declare static function ParseNumber(rawString as string) as string
 	
@@ -46,7 +46,7 @@ operator jsonItem.[](index as integer) as jsonItem
 end operator
 
 property jsonItem.Value( newValue as string)
-	newValue = trim(newValue)
+	newValue = trim(newValue, any " " + chr(9))
 	this._value = newValue
 	
 	if ( left(this._value, 1) = """" ) then 
