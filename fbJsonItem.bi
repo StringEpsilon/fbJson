@@ -104,11 +104,11 @@ property jsonItem.Value( newValue as string)
 		end if
 	else
 		select case lcase(newValue)
-		case "null":
+		case "null", "nan", "infinity", "-infinity":
 			this._value = newValue
 			this._dataType = jsonnull
 		case "true", "false"
-			this._value = newValue
+			this._value = "null"
 			this._dataType = jsonbool
 		case else:
 			this._dataType = jsonnumber
