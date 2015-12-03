@@ -19,12 +19,14 @@ dim as jsonItem token = jsonItem(jsonFile)
 print token["firstName"].value
 print token["lastName"].value
 ' Even accross multiple levels.
-print token["address"]["streetAddress"].value
+print token["phoneNumbers"][0]["number"].value
 print
+
 
 ' Access via index:
 for i as integer = 0 to token.count
-	if token[i].Count >= 0 then
+	
+	if ( token[i].Count >= 0 AND token[i].datatype = jsonObject) then
 		print token[i].Key &" : {"
 		for j as integer = 0 to token[i].Count
 			print chr(9) & token[i][j].key & " = " & token[i][j].value

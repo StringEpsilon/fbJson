@@ -26,6 +26,7 @@ type jsonItem extends object
 		
 		declare static function ParseNumber(rawString as string) as string
 		declare sub ParseObjectString(byref jsonString as string, startIndex as integer, endIndex as integer)
+		declare sub ParseArrayString(byref jsonString as string, startIndex as integer, endIndex as integer)	
 	public:
 		parent as jsonItem ptr
 		key as string
@@ -53,11 +54,13 @@ constructor jsonItem(byref jsonString as string)
 end constructor
 
 operator jsonItem.[](key as string) as jsonItem	
-	for i as integer = 0 to ubound(this._children)
-		if ( this._children(i)->key = key ) then
-			return *this._children(i)
-		end if
-	next
+	if ( this._datatype = jsonObject ) then
+		for i as integer = 0 to ubound(this._children)
+			if ( this._children(i)->key = key ) then
+				return *this._children(i)
+			end if
+		next
+	end if
 	return type<jsonItem>()
 end operator
 
@@ -72,8 +75,13 @@ property jsonItem.Count() as integer
 	return ubound(this._children)
 end property
 
+property jsonItem.DataType() as jsonDataType
+	return this._datatype
+end property
+
 property jsonItem.Value( newValue as string)
 	newValue = trim(newValue, any " " + chr(9,10,13))
+	
 	if ( left(newValue, 1) = """" ) then 
 		if (right(newValue, 1) = """" ) then
 			this._dataType = jsonString
@@ -89,6 +97,7 @@ property jsonItem.Value( newValue as string)
 	elseif ( left(newValue, 1) = "[" ) then 
 		if (right(newValue, 1) = "]" ) then
 			this._dataType = jsonarray
+			this.ParseArrayString(newValue, 1, len(newValue)-1)
 			this._value = newValue
 		else
 			this._dataType = malformed
@@ -115,6 +124,124 @@ end property
 function jsonItem.ParseNumber(rawString as string) as string
 	return str(cdbl(rawString))
 end function
+
+sub jsonItem.ParseArrayString(byref jsonString as string, startIndex as integer, endIndex as integer)
+	dim as boolean errorOccured = false
+	dim as integer tokenCount
+	dim as integer stateStart
+	dim as parserState state = valueToken
+	dim as boolean isStringOpen = false
+	
+	
+	this._datatype = jsonArray
+	
+	for i as integer = startIndex to endIndex
+		' Because strings can contain other json tokens, we handle string seperately:
+		select case chr(jsonString[i])
+		case """":
+			if (chr(jsonString[i-1]) <> "\") then
+				isStringOpen = not(isStringOpen)
+				if (isStringOpen = true) then
+					if ( state = none ) then
+						state = valueToken 
+						stateStart = i+1
+					end if
+				end if
+			end if
+		end select
+		
+		' When not in a string, we can handle the complicated suff:
+		if ( isStringOpen = false ) then
+			select case chr(jsonString[i])
+				case ":":
+					if ( state <> objectToken and state <> arrayToken ) then errorOccured = true
+				case ",":
+					if (state = valueToken) then
+						state = valueTokenClosed
+					elseif (state = none) then
+						stateStart = i+1
+						state = valueToken
+					end if
+				case "{":
+					if ( state = valueToken and tokenCount = 0 ) then
+						state = objectToken
+						stateStart = i+1
+					end if
+					tokenCount += 1
+				case "}"
+					tokenCount -= 1
+					if ( state = objectToken and tokenCount = 0) then						
+						dim child as jsonItem ptr = new jsonItem
+						redim preserve this._children(ubound(this._children)+1)
+						this._children(ubound(this._children)) = child
+						child->parent = @this
+						child->ParseObjectString(jsonString, stateStart, i)
+						state = none
+						stateStart = i+1
+					elseif (state <> valueToken and state <> arrayToken) then
+						if (state <> objectToken and tokenCount = 0) then
+							errorOccured = true
+						end if
+					end if
+				case "[":
+					if (state = valueToken) then	
+						state = arrayToken
+					elseif (state < arrayToken) then
+						errorOccured = true
+					end if
+				case "]":
+					
+					if (state = arrayToken) then
+						state = valueToken
+					end if
+			end select
+		end if	
+		
+		if (i = endIndex) then
+			if (isStringOpen) then
+				errorOccured = true
+			end if
+			if (state = valueToken) then
+				state = valueTokenClosed
+			elseif (state <> none) then
+				errorOccured = true
+			end if
+		end if
+		
+		if (state = valueTokenClosed) then
+			dim child as jsonItem ptr = new jsonItem
+			
+			child->parent = @this
+			child->Value = mid(jsonString, stateStart, i+1 - stateStart)
+			
+			redim preserve this._children(ubound(this._children)+1)
+			this._children(ubound(this._children)) = child
+			stateStart = i
+			state = valueToken
+		end if
+		
+		if ( errorOccured ) then
+			this._dataType = malformed
+			
+			dim as integer lineNumber = 1
+			dim as integer position = 1
+			for i as integer = 0 to endIndex
+				if (jsonString[i] = 10) then
+					lineNumber +=1
+					position = 1
+				end if
+				position +=1
+			next
+			
+			if (isStringOpen) then
+				print "FBJSON Error: Expected closing quote, found: "+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+			else
+				print "FBJSON Error: Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+			end if
+			return
+		end if
+	next
+end sub
 
 sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer, endIndex as integer)	
 	this._datatype = jsonObject
