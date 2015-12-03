@@ -1,5 +1,6 @@
 ## fbJson
-JSON Parser written in FreeBASIC
+
+A small JSON library written in FreeBASIC
 
 ### Why?
 
@@ -9,7 +10,9 @@ Also, it's a nice opportunity to learn something.
 
 ### Using it
 
-I do not recommend yet.
+You can throw a json-string into the constructor of jsonItem and access child elements via item["string"] and item[integer].
+
+I still need to test a bunch of stuff and add bits and pieces, but you can use it to access all data in your json as string.
 
 ### TODO
 
@@ -17,8 +20,6 @@ I do not recommend yet.
 
 1b) Have a jsonDocument for the root nodes and jsonItems for everything beneath.
 
-1c) Neat way to access children and values
+2) Fix style and naming.
 
-2) Make arrays useable again
-
-3) Fix style and naming.
+3) Refactor the parser. 
