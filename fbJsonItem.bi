@@ -22,14 +22,15 @@ type jsonItem extends object
 	private:
 		_dataType as jsonDataType = jsonNull
 		_value as string
+		_children(any) as jsonItem ptr
+		
 		declare static function ParseNumber(rawString as string) as string
-	
 		declare sub ParseObjectString(byref jsonString as string, startIndex as integer, endIndex as integer)
 	public:
 		parent as jsonItem ptr
 		key as string
 	
-		children(any) as jsonItem ptr
+		
 		values(any) as string
 		
 		declare constructor()
@@ -37,6 +38,7 @@ type jsonItem extends object
 		
 		declare property Value(newValue as string)
 		declare property Value() as string
+		declare property Count() as integer
 		declare property DataType() as jsonDataType
 		declare operator [](key as string) as jsonItem
 		declare operator [](index as integer) as  jsonItem
@@ -51,20 +53,24 @@ constructor jsonItem(byref jsonString as string)
 end constructor
 
 operator jsonItem.[](key as string) as jsonItem	
-	for i as integer = 0 to ubound(this.children)
-		if ( this.children(i)->key = key ) then
-			return *this.children(i)
+	for i as integer = 0 to ubound(this._children)
+		if ( this._children(i)->key = key ) then
+			return *this._children(i)
 		end if
 	next
 	return type<jsonItem>()
 end operator
 
 operator jsonItem.[](index as integer) as jsonItem
-	if ( index <= ubound(this.children) ) then
-		return *this.children(index)
+	if ( index <= ubound(this._children) ) then
+		return *this._children(index)
 	end if
 	return type<jsonItem>()
 end operator
+
+property jsonItem.Count() as integer	
+	return ubound(this._children)
+end property
 
 property jsonItem.Value( newValue as string)
 	newValue = trim(newValue, any " " + chr(9,10,13))
@@ -173,8 +179,8 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 						
 						dim child as jsonItem ptr = new jsonItem
 						
-						redim preserve this.children(ubound(this.children)+1)
-						this.children(ubound(this.children)) = child
+						redim preserve this._children(ubound(this._children)+1)
+						this._children(ubound(this._children)) = child
 						child->parent = @this
 						
 						child->key = newKey
@@ -217,8 +223,8 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			child->key = newKey
 			child->Value = mid(jsonString, stateStart, i+1 - stateStart)
 			
-			redim preserve this.children(ubound(this.children)+1)
-			this.children(ubound(this.children)) = child
+			redim preserve this._children(ubound(this._children)+1)
+			this._children(ubound(this._children)) = child
 			stateStart = i
 			state = none
 		end if
