@@ -1,11 +1,11 @@
 enum jsonDataType
 	malformed = -1
-	null = 0
-	object
-	array
-	number
+	jsonNull = 0
+	jsonObject
+	jsonArray
+	jsonNumber
 	jsonString
-	bool
+	jsonBool
 end enum
 
 enum parserState
@@ -16,12 +16,11 @@ enum parserState
 	arrayToken
 	arrayTokenClosed
 	objectToken
-	objectTokenClosed
 end enum
 
 type jsonItem extends object
 	private:
-		_dataType as jsonDataType = null
+		_dataType as jsonDataType = jsonNull
 		_value as string
 		declare static function ParseNumber(rawString as string) as string
 	
@@ -68,11 +67,9 @@ operator jsonItem.[](index as integer) as jsonItem
 end operator
 
 property jsonItem.Value( newValue as string)
-	newValue = trim(newValue, any " " + chr(9))
-	this._value = newValue
-	
-	if ( left(this._value, 1) = """" ) then 
-		if (right(this._value, 1) = """" ) then
+	newValue = trim(newValue, any " " + chr(9,10,13))
+	if ( left(newValue, 1) = """" ) then 
+		if (right(newValue, 1) = """" ) then
 			this._dataType = jsonString
 			this._value = ""
 			for i as integer = 1 to len(newValue)-2
@@ -83,21 +80,23 @@ property jsonItem.Value( newValue as string)
 		else
 			this._dataType = malformed
 		end if
-	elseif ( left(this._value, 1) = "[" ) then 
-		if (right(this._value, 1) = "]" ) then
-			this._dataType = array
+	elseif ( left(newValue, 1) = "[" ) then 
+		if (right(newValue, 1) = "]" ) then
+			this._dataType = jsonarray
+			this._value = newValue
 		else
 			this._dataType = malformed
 		end if
 	else
 		select case lcase(newValue)
 		case "null":
-			this._dataType = null
-			? "NULL!"
+			this._value = newValue
+			this._dataType = jsonnull
 		case "true", "false"
-			this._dataType = bool
+			this._value = newValue
+			this._dataType = jsonbool
 		case else:
-			this._dataType = number
+			this._dataType = jsonnumber
 			this._value = jsonItem.ParseNumber(this._value)
 		end select
 	end if
@@ -112,7 +111,7 @@ function jsonItem.ParseNumber(rawString as string) as string
 end function
 
 sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer, endIndex as integer)	
-	this._datatype = jsonDataType.object
+	this._datatype = jsonObject
 	dim as boolean errorOccured = false
 	dim as string newKey
 	dim as integer tokenCount
@@ -128,7 +127,7 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			if (not isEscaped) then
 				isStringOpen = not(isStringOpen)
 				if (isStringOpen = true) then
-					if (state = none ) then 
+					if ( state = none ) then 
 						state = keyToken
 						stateStart = i+1
 					elseif (state = valueToken) then
@@ -161,9 +160,6 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 					if (state = valueToken) then
 						state = valueTokenClosed
 					end if
-					if (state <> objectToken and state <> arrayToken ) then
-						state = valueTokenClosed
-					end if
 				case "{":
 					if ( state = valueToken and tokenCount = 0 ) then
 						state = objectToken
@@ -173,7 +169,8 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 				case "}"
 					tokenCount -= 1
 					if ( state = objectToken and tokenCount = 0) then
-						state = objectTokenClosed
+						this._datatype = jsonObject
+						
 						dim child as jsonItem ptr = new jsonItem
 						
 						redim preserve this.children(ubound(this.children)+1)
@@ -208,8 +205,6 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			end if
 			if (state = valueToken) then
 				state = valueTokenClosed
-			elseif (state = objectTokenClosed) then
-				state = none
 			else
 				errorOccured = true
 			end if
