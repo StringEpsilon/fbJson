@@ -20,7 +20,7 @@ end enum
 end namespace
 
 type jsonItem extends object
-	private:
+	protected:
 		_dataType as jsonDataType = jsonNull
 		_value as string
 		_children(any) as jsonItem ptr
@@ -42,6 +42,8 @@ type jsonItem extends object
 		declare property DataType() as jsonDataType
 		declare operator [](key as string) as jsonItem
 		declare operator [](index as integer) as jsonItem
+		
+		declare function ToString(level as integer = 0) as string
 end type
 
 constructor jsonItem()
@@ -144,7 +146,7 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 	end if
 	
 	for i as integer = startIndex+1 to endIndex -1
-		' Because strings can contain other json tokens, we handle string seperately:
+		' Because strings can contain other json tokens, we handle strings seperately:
 		select case chr(jsonString[i])
 		case """":
 			if ( chr(jsonString[i-1]) <> "\" ) then
@@ -236,7 +238,7 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 				child->ParseObjectString(jsonString, stateStart, i-2)
 			elseif ( left(valueString,1) = "[" and right(valueString,1) = "]" ) then
 				child->_datatype = jsonArray
-				child->ParseObjectString(jsonString, stateStart, i-2)
+				child->ParseObjectString(jsonString, stateStart, i)
 			else
 				child->Value = valueString
 			end if
@@ -273,6 +275,94 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 end sub
 
 
-type fbJsonDocument extends JsonItem
-
+type jsonDocument extends jsonItem
+	declare function ReadFile(path as string) as boolean
+	
+	declare operator [](key as string) as jsonItem
+	declare operator [](index as integer) as jsonItem
 end type
+
+operator jsonDocument.[](key as string) as jsonItem	
+	if ( this._datatype = jsonObject ) then
+		for i as integer = 0 to ubound(this._children)
+			if ( this._children(i)->key = key ) then
+				return *this._children(i)
+			end if
+		next
+	end if
+	return type<jsonItem>()
+end operator
+
+operator jsonDocument.[](index as integer) as jsonItem
+	if ( index <= ubound(this._children) ) then
+		return *this._children(index)
+	end if
+	return type<jsonItem>()
+end operator
+
+function jsonDocument.ReadFile(path as string) as boolean
+	dim as string inputLine 
+	dim as string jsonFile
+	dim as integer ff = freefile()
+	
+	open path for input as #ff 
+		while (not eof(ff))
+			line input #ff, inputLine 
+			jsonFile += inputLine + chr(10)
+		wend
+	close #ff
+	
+	jsonFile = trim(jsonFile, any " "+chr(9,10) )
+	this.ParseObjectString(jsonFile, 0, len(jsonFile)-1)	
+	return this._datatype <> malformed
+end function
+
+
+function jsonItem.ToString(level as integer = 0) as string
+	dim as string result
+	
+	if this.datatype = jsonObject  then
+		result = "{" + chr(10) + string((level+1), chr(9)) 
+	elseif ( this.datatype = jsonArray ) then
+		result = "["
+	end if
+		
+	for i as integer = 0 to this.count
+		if ( this.datatype = jsonObject ) then
+			result += """" & this[i].key & """ : " 
+		end if
+		
+		if ( this[i].Count >= 0 ) then
+			result += this[i].toString(level+1)
+		else			
+			if ( this.datatype = jsonString) then
+				result += """"
+			end if
+			
+			result += this[i].value
+			
+			if ( this.datatype = jsonString) then
+				result += """"
+			end if
+		end if
+		if ( i < this.count ) then
+			result += ","
+		else
+			level -= 1
+		end if
+		
+		if (this.datatype = jsonObject) then
+			result += chr(10)
+			
+			result += string((level+1),chr(9)) 
+		end if
+	next
+	
+	if this.datatype = jsonObject  then
+		result += "}"
+	elseif ( this.datatype = jsonArray ) then
+		result += "]"
+	end if
+	
+	return result
+end function
