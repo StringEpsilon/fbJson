@@ -35,6 +35,11 @@ type jsonItem extends object
 		declare operator [](index as integer) as jsonItem
 		
 		declare function ToString(level as integer = 0) as string
+		
+		declare function AddItem(key as string, value as string) as boolean
+		declare function AddItem(key as string, item as jsonItem) as boolean
+		declare function AddItem(value as string) as boolean
+		
 end type
 
 constructor jsonItem()
@@ -54,6 +59,7 @@ operator jsonItem.[](key as string) as jsonItem
 			end if
 		next
 	end if
+	
 	#ifdef fbJSON_debug
 		print "fbJSON Error: "& key & " not found in "& this.key
 		end -1
@@ -85,6 +91,7 @@ end property
 property jsonItem.Value( newValue as string)
 	newValue = trim(newValue, any " " + chr(9,10,13))
 	
+	' First, handle strings in quotes:
 	if ( left(newValue, 1) = """" ) then 
 		if ( right(newValue, 1) = """" ) then
 			this._dataType = jsonString
@@ -99,6 +106,7 @@ property jsonItem.Value( newValue as string)
 			this._dataType = malformed
 		end if
 	else
+		' Now handle the other stuff:
 		select case lcase(newValue)
 		case "null", "nan", "infinity", "-infinity":
 			this._value = newValue
@@ -107,8 +115,13 @@ property jsonItem.Value( newValue as string)
 			this._value = newValue
 			this._dataType = jsonBool
 		case else:
+			' And for convience: Everything that's none of the above and not a number, we save as string:
 			this._dataType = jsonNumber
 			this._value = jsonItem.ParseNumber(newValue)
+			if ( this._value = "0" and newValue <> "0" ) then
+				this._value = newValue
+				this._dataType = jsonString
+			end if
 		end select
 	end if
 end property
@@ -261,7 +274,6 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			else
 				this._error = "Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
 			end if
-			? i +1, state
 			#ifdef fbJson_DEBUG
 				print "fbJSON Error: " & this._error
 			#endif
@@ -317,4 +329,67 @@ function jsonItem.ToString(level as integer = 0) as string
 	end if
 	
 	return result
+end function
+
+function JsonItem.AddItem(key as string, newValue as string) as boolean
+	if ( key = "" orElse this[key].datatype <> jsonNull ) then
+		return false
+	end if
+	
+	if ( this._datatype = jsonObject or this._datatype = jsonNull ) then
+		this._datatype = jsonObject
+		
+		dim child as JsonItem ptr = new jsonItem
+		child->value = newValue
+		child->key = key
+		
+		if ( child->datatype <> malformed ) then
+			redim preserve this._children(this.count +1)
+			this._children(this.count) = child
+			return true
+		else
+			delete child
+			return false
+		end if
+	end if
+	return false
+end function
+
+function JsonItem.AddItem(key as string, item as jsonItem) as boolean
+	if ( key = "" orElse this[key].datatype <> jsonNull ) then
+		return false
+	end if
+
+	if ( ( this._datatype = jsonObject or this._datatype = jsonNull ) ) then
+		dim child as JsonItem ptr = new jsonItem(item.ToString)
+		child->key = key
+		
+		if ( child->_datatype <> malformed ) then
+			redim preserve this._children(this.count +1)
+			this._children(this.count) = child
+			this._datatype = jsonObject
+			return true
+		else
+			delete child
+			return false
+		end if
+	end if
+	return false
+end function
+
+function JsonItem.AddItem(newValue as string) as boolean
+	if (this._datatype = jsonArray) then
+		dim child as JsonItem ptr
+		child->value = newValue
+		if ( child->_datatype <> malformed ) then
+			redim preserve this._children(this.count +1)
+			this._children(this.count) = child
+			return true
+		else
+			delete child
+			return false
+		end if
+		return true
+	end if
+	return false
 end function
