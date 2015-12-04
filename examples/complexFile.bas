@@ -1,5 +1,5 @@
 #define fbJson_DEBUG
-#include once "fbJsonItem.bi"
+#include once "../fbJson.bi"
 
 dim as jsonDocument document
 if (document.ReadFile("complextest.json") = false) then end

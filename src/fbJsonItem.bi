@@ -67,7 +67,6 @@ operator jsonItem.[](key as string) as jsonItem
 		print "fbJSON Error: "& key & " not found in "& this.key
 		end -1
 	#endif
-	
 	return type<jsonItem>()
 end operator
 

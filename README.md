@@ -18,8 +18,4 @@ I still need to test a bunch of stuff and add bits and pieces, but you can use i
 
 1) Bring the whole thing into a usable form.
 
-1b) Have a jsonDocument for the root nodes and jsonItems for everything beneath.
-
 2) Fix style and naming.
-
-3) Refactor the parser. 
