@@ -63,6 +63,11 @@ operator jsonItem.[](key as string) as jsonItem
 			end if
 		next
 	end if
+	#ifdef fbJSON_debug
+		print "fbJSON Error: "& key & " not found in "& this.key
+		end -1
+	#endif
+	
 	return type<jsonItem>()
 end operator
 
@@ -70,7 +75,13 @@ operator jsonItem.[](index as integer) as jsonItem
 	if ( index <= ubound(this._children) ) then
 		return *this._children(index)
 	end if
-	return type<jsonItem>()
+	
+	#ifdef fbJSON_debug
+		print "fbJSON Error: "& index & " out of bounds in "& this.key &". Actual size is "& this.count
+		end -1
+	#else
+		return type<jsonItem>()
+	#endif
 end operator
 
 property jsonItem.Count() as integer
@@ -88,6 +99,7 @@ property jsonItem.Value( newValue as string)
 		if ( right(newValue, 1) = """" ) then
 			this._dataType = jsonString
 			this._value = ""
+			
 			for i as integer = 1 to len(newValue)-2
 				if chr(newValue[i]) <> "\" then
 					this._value += chr(newValue[i])
@@ -145,7 +157,7 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 		return
 	end if
 	
-	for i as integer = startIndex+1 to endIndex -1
+	for i as integer = startIndex +1 to endIndex -1
 		' Because strings can contain other json tokens, we handle strings seperately:
 		select case chr(jsonString[i])
 		case """":
@@ -208,22 +220,17 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			end select
 		end if	
 		
-		
 		if (i =  endIndex -1) then
-			if ( isStringOpen = -1 or tokenCount > 0  or state <> valueToken) then
+			if ( isStringOpen = -1 or tokenCount <> 0  or state <> valueToken) then
 				errorOccured = true
 			end if
-			state = valueTokenClosed
+			state = valueTokenClosed 
+			i+=1
 		end if
 		
 		if ( state = valueTokenClosed ) then
 			dim child as jsonItem ptr = new jsonItem
 			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
-			
-			' TODO: Figure out why THIS is needed:
-			if (i = endIndex -1 and ( this.parent = 0 orElse this.parent->datatype = jsonArray) ) then
-				valuestring = trim(mid(jsonString, stateStart+1, i+1 - stateStart),any " "+chr(9,10))
-			end if
 			
 			child->parent = @this
 			if ( this._datatype = jsonObject ) then
@@ -235,10 +242,10 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			
 			if ( left(valueString,1) = "{" and right(valueString,1) = "}" ) then
 				child->_datatype = jsonObject
-				child->ParseObjectString(jsonString, stateStart, i-2)
+				child->ParseObjectString(jsonString, stateStart, stateStart + len(valuestring) -1)
 			elseif ( left(valueString,1) = "[" and right(valueString,1) = "]" ) then
 				child->_datatype = jsonArray
-				child->ParseObjectString(jsonString, stateStart, i)
+				child->ParseObjectString(jsonString, stateStart, stateStart + len(valuestring) -1)
 			else
 				child->Value = valueString
 			end if
@@ -266,7 +273,7 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			end if
 			? i +1, state
 			#ifdef fbJson_DEBUG
-				print "FBJSON Error: " & this._error
+				print "fbJSON Error: " & this._error
 			#endif
 			this._dataType = malformed
 			return
@@ -335,13 +342,13 @@ function jsonItem.ToString(level as integer = 0) as string
 		if ( this[i].Count >= 0 ) then
 			result += this[i].toString(level+1)
 		else			
-			if ( this.datatype = jsonString) then
+			if ( this[i].datatype = jsonString) then
 				result += """"
 			end if
 			
 			result += this[i].value
 			
-			if ( this.datatype = jsonString) then
+			if ( this[i].datatype = jsonString) then
 				result += """"
 			end if
 		end if
@@ -353,7 +360,6 @@ function jsonItem.ToString(level as integer = 0) as string
 		
 		if (this.datatype = jsonObject) then
 			result += chr(10)
-			
 			result += string((level+1),chr(9)) 
 		end if
 	next
