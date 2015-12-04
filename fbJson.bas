@@ -1,36 +1,19 @@
+#define fbJson_DEBUG
 #include once "fbJsonItem.bi"
 
-dim as integer ff = freefile()
+dim as jsonDocument document
+if (document.ReadFile("complextest.json") = false) then end
 
-dim as string inputLine 
-dim as string jsonFile
+print document["Window"]["Listbox"]["Dimensions"]["h"].value
+print document["Window"]["Listbox"]["Dimensions"]["w"].value
+print document["Window"]["Listbox"]["Dimensions"]["x"].value
+print document["Window"]["Listbox"]["Dimensions"]["y"].value
+print document["Window"]["Listbox"]["Elements"][0].value
 
-open "test.json" for input as #ff 
-	while (not eof(ff))
-		line input #ff, inputLine 
-		jsonFile += inputLine + chr(10)
-	wend
-close #ff
-trim(jsonFile, chr(10))
+sleep
 
-dim as jsonItem token = jsonItem(jsonFile)
-
-' Access via key:
-print token["firstName"].value
-print token["lastName"].value
-' Even accross multiple levels.
-print token["phoneNumbers"][0]["number"].value
+print
+print "---------"
 print
 
-
-' Access via index:
-for i as integer = 0 to token.count
-	
-	if ( token[i].Count >= 0 AND token[i].datatype = jsonObject) then
-		print token[i].Key &" : {"
-		for j as integer = 0 to token[i].Count
-			print chr(9) & token[i][j].key & " = " & token[i][j].value
-		next
-		print "}"
-	end if
-next
+print document.ToString()

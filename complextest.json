@@ -1,33 +1,33 @@
 {
   "Window": 
   {
-    "height": "200",
-    "width": "400",
+    "height": 200,
+    "width": 400,
     "Scrollbar": 
     [
       {
         "id": "vscrollbar",
-        "Maxium": "20",
-        "Minimum": "0",
-        "Range": "5",
+        "Maxium": 20,
+        "Minimum": 0,
+        "Range": 5,
         "Dimensions": 
         {
-          "-x": "5",
-          "-y": "90",
-          "-height": "90"
+          "x": 5,
+          "y": 90,
+          "height": 90
         }
       },
       {
         "id": "hscrollbar",
-        "Maxium": "20",
-        "Minimum": "0",
-        "Range": "5",
+        "Maxium": 20,
+        "Minimum": 0,
+        "Range": 5,
         "Orientation": "horizontal",
         "Dimensions": 
         {
-          "-x": "20",
-          "-y": "90",
-          "-width": "90"
+          "x": 20,
+          "y": 90,
+          "width": 90
         }
       }
     ],
@@ -36,21 +36,21 @@
       {
         "id": "vscrollbarLabel",
         "text": "V Scrollbar 0",
-        "length": "16",
+        "length": 16,
         "Dimensions": 
         {
-          "-x": "20",
-          "-y": "100"
+          "x": 20,
+          "y": 100
         }
       },
       {
         "id": "hscrollbarLabel",
         "text": "V Scrollbar 0",
-        "length": "16",
+        "length": 16,
         "Dimensions": 
         {
-          "-x": "20",
-          "-y": "120"
+          "x": 20,
+          "y": 120
         }
       },
       {
@@ -58,8 +58,8 @@
         "text": "Select!",
         "Dimensions": 
         {
-          "-x": "205",
-          "-y": "5"
+          "x": 205,
+          "y": 5
         }
       }
     ],
@@ -68,14 +68,12 @@
       "id": "listbox",
       "Dimensions": 
       {
-        "x": "100",
-        "y": "5",
-        "h": "80",
-        "w": "100"
+        "x": 100,
+        "y": 5,
+        "h": 80,
+        "w": 100
       },
       "Elements": 
-      {
-        "Value": 
         [
           "Item 1",
           "Item 2",
@@ -88,16 +86,15 @@
           "Item 9",
           "Item 10"
         ]
-      }
     },
     "Spinner": 
     {
       "id": "spinner",
       "Dimensions": 
       {
-        "x": "5",
-        "y": "25",
-        "h": "24"
+        "x": 5,
+        "y": 25,
+        "h": 24
       }
     },
     "Togglebutton": 
@@ -106,8 +103,8 @@
       "label": "Disabled",
       "Dimensions": 
       {
-        "x": "5",
-        "y": "5"
+        "x": 5,
+        "y": 5
       }
     }
   }
