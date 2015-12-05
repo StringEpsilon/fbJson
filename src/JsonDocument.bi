@@ -5,7 +5,7 @@ type jsonDocument extends jsonItem
 	
 	declare operator [](key as string) as jsonItem
 	declare operator [](index as integer) as jsonItem
-	declare function SaveFile(path as string) as boolean
+	declare function SaveFile(path as string, overwrite as boolean = true) as boolean
 end type
 
 operator jsonDocument.[](key as string) as jsonItem	
@@ -43,13 +43,18 @@ function jsonDocument.ReadFile(path as string) as boolean
 	return this._datatype <> malformed
 end function
 
-function jsonDocument.SaveFile(path as string) as boolean
+function jsonDocument.SaveFile(path as string, overwrite as boolean = true) as boolean
 	dim as string jsonFile = this.ToString()
 	dim as integer ff = freefile()
+	dim as integer fileError 
 	
-	open path for output as #ff 
-	print #ff, jsonFile 
-	close #ff
+	if ( dir(path) <> "" and overwrite = false ) then return false
 	
-	return true
+	fileError = open(path for output as #ff)
+	if (fileError = 0 ) then
+		print #ff, jsonFile 
+		close #ff
+		return true
+	end if
+	return false
 end function
