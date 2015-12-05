@@ -5,6 +5,7 @@ type jsonDocument extends jsonItem
 	
 	declare operator [](key as string) as jsonItem
 	declare operator [](index as integer) as jsonItem
+	declare function SaveFile(path as string) as boolean
 end type
 
 operator jsonDocument.[](key as string) as jsonItem	
@@ -40,4 +41,15 @@ function jsonDocument.ReadFile(path as string) as boolean
 	jsonFile = trim(jsonFile, any " "+chr(9,10) )
 	this.ParseObjectString(jsonFile, 0, len(jsonFile)-1)	
 	return this._datatype <> malformed
+end function
+
+function jsonDocument.SaveFile(path as string) as boolean
+	dim as string jsonFile = this.ToString()
+	dim as integer ff = freefile()
+	
+	open path for output as #ff 
+	print #ff, jsonFile 
+	close #ff
+	
+	return true
 end function
