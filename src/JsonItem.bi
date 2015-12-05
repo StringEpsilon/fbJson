@@ -39,7 +39,7 @@ type jsonItem extends object
 		declare function AddItem(key as string, value as string) as boolean
 		declare function AddItem(key as string, item as jsonItem) as boolean
 		declare function AddItem(value as string) as boolean
-		
+		declare function AddItem(item as jsonItem) as boolean
 end type
 
 constructor jsonItem()
@@ -361,7 +361,8 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 	end if
 
 	if ( ( this._datatype = jsonObject or this._datatype = jsonNull ) ) then
-		dim child as JsonItem ptr = new jsonItem(item.ToString)
+		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
+		*child = item
 		child->key = key
 		
 		if ( child->_datatype <> malformed ) then
@@ -378,9 +379,27 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 end function
 
 function JsonItem.AddItem(newValue as string) as boolean
-	if (this._datatype = jsonArray) then
-		dim child as JsonItem ptr
+	if (this._datatype = jsonArray or this._datatype = jsonNull) then
+		this._datatype = jsonArray
+		dim child as JsonItem ptr = new jsonItem
 		child->value = newValue
+		if ( child->_datatype <> malformed ) then
+			redim preserve this._children(this.count +1)
+			this._children(this.count) = child
+			return true
+		else
+			delete child
+			return false
+		end if
+		return true
+	end if
+	return false
+end function
+
+function JsonItem.AddItem(item as jsonItem) as boolean
+	if (this._datatype = jsonArray) then
+		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
+		*child = item
 		if ( child->_datatype <> malformed ) then
 			redim preserve this._children(this.count +1)
 			this._children(this.count) = child
