@@ -1,4 +1,4 @@
-#include once "../fbJson.bi"
+#include once "../../fbJson.bi"
 
 dim as jsonDocument array = jsonDocument()
 

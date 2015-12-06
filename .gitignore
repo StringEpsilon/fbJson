@@ -1,0 +1,9 @@
+examples/files/read_complex
+examples/files/read_simple
+examples/strings/array_flat
+examples/strings/array_nested
+examples/strings/object_flat
+examples/strings/object_singlechild
+examples/strings/object_singlechild.bas
+examples/generated/array_flat
+examples/generated/object_flat

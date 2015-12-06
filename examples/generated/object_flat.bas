@@ -1,4 +1,4 @@
-#include once "../fbJson.bi"
+#include once "../../fbJson.bi"
 
 dim as jsonItem item = jsonItem()
 dim as jsonItem array = jsonItem("[""? item[\""lines\""][0].value"", ""? item[\""lines\""][1].value""]")
