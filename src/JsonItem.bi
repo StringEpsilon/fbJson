@@ -10,7 +10,7 @@ end enum
 
 end namespace
 
-type jsonItem extends object
+type jsonItem
 	protected:
 		_dataType as jsonDataType = jsonNull
 		_value as string
@@ -27,19 +27,26 @@ type jsonItem extends object
 		declare constructor()
 		declare constructor(byref jsonString as string)
 		
+		declare destructor()
+		
 		declare property Value(newValue as string)
 		declare property Value() as string
 		declare property Count() as integer
 		declare property DataType() as jsonDataType
-		declare operator [](key as string) as jsonItem
-		declare operator [](index as integer) as jsonItem
+		declare operator [](key as string) byref as jsonItem
+		declare operator [](index as integer) byref as jsonItem
 		
 		declare function ToString(level as integer = 0) as string
 		
 		declare function AddItem(key as string, value as string) as boolean
 		declare function AddItem(key as string, item as jsonItem) as boolean
+		
 		declare function AddItem(value as string) as boolean
 		declare function AddItem(item as jsonItem) as boolean
+		
+		declare function RemoveItem(key as string) as boolean
+		declare function RemoveItem(index as integer) as boolean
+		
 end type
 
 constructor jsonItem()
@@ -51,7 +58,13 @@ constructor jsonItem(byref jsonString as string)
 	this.ParseObjectString(jsonString, 0, len(jsonstring)-1)
 end constructor
 
-operator jsonItem.[](key as string) as jsonItem	
+destructor jsonItem()
+	for i as integer = 0 to ubound(this._children)
+		delete this._children(i)
+	next
+end destructor
+
+operator jsonItem.[](key as string) byref as jsonItem	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to ubound(this._children)
 			if ( this._children(i)->key = key ) then
@@ -64,10 +77,10 @@ operator jsonItem.[](key as string) as jsonItem
 		print "fbJSON Error: "& key & " not found in "& this.key
 		end -1
 	#endif
-	return type<jsonItem>()
+	return *new jsonItem()
 end operator
 
-operator jsonItem.[](index as integer) as jsonItem
+operator jsonItem.[](index as integer) byref as jsonItem
 	if ( index <= ubound(this._children) ) then
 		return *this._children(index)
 	end if
@@ -76,7 +89,7 @@ operator jsonItem.[](index as integer) as jsonItem
 		print "fbJSON Error: "& index & " out of bounds in "& this.key &". Actual size is "& this.count
 		end -1
 	#else
-		return type<jsonItem>()
+		return *new jsonItem()
 	#endif
 end operator
 
@@ -412,3 +425,47 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 	end if
 	return false
 end function
+
+
+function JsonItem.RemoveItem(key as string) as boolean
+	dim as integer index = -1
+	
+	if ( this._datatype = jsonObject ) then
+		for i as integer = 0 to ubound(this._children)
+			if ( this._children(i)->key = key ) then
+				index = i
+				exit for
+			end if
+		next
+	end if
+	
+	if ( index <> -1 ) then
+		delete this._children(index)
+		if ( index < this.Count ) then
+			for i as integer = index to this.Count -1
+				this._children(i) = this._children(i+1)
+			next
+		end if
+		
+		redim preserve this._children( this.Count -1 )
+		return true
+	end if
+	
+	return false
+end function
+
+function JsonItem.RemoveItem(index as integer) as boolean
+	if ( index <> -1 AND index <= this.Count ) then
+		delete this._children(index)
+		if ( index < this.Count ) then
+			for i as integer = index to this.Count -1
+				this._children(i) = this._children(i+1)
+			next
+		end if
+		
+		redim preserve this._children( this.Count -1 )
+		return true
+	end if
+	return false
+end function
+

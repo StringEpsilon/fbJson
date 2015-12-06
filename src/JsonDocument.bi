@@ -3,12 +3,12 @@
 type jsonDocument extends jsonItem
 	declare function ReadFile(path as string) as boolean
 	
-	declare operator [](key as string) as jsonItem
-	declare operator [](index as integer) as jsonItem
+	declare operator [](key as string) byref as jsonItem
+	declare operator [](index as integer) byref  as jsonItem
 	declare function SaveFile(path as string, overwrite as boolean = true) as boolean
 end type
 
-operator jsonDocument.[](key as string) as jsonItem	
+operator jsonDocument.[](key as string) byref as jsonItem	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to ubound(this._children)
 			if ( this._children(i)->key = key ) then
@@ -16,14 +16,14 @@ operator jsonDocument.[](key as string) as jsonItem
 			end if
 		next
 	end if
-	return type<jsonItem>()
+	return *new jsonItem()
 end operator
 
-operator jsonDocument.[](index as integer) as jsonItem
+operator jsonDocument.[](index as integer) byref as jsonItem
 	if ( index <= ubound(this._children) ) then
 		return *this._children(index)
 	end if
-	return type<jsonItem>()
+	return *new jsonItem()
 end operator
 
 function jsonDocument.ReadFile(path as string) as boolean
@@ -38,7 +38,7 @@ function jsonDocument.ReadFile(path as string) as boolean
 		wend
 	close #ff
 	
-	jsonFile = trim(jsonFile, any " "+chr(9,10) )
+	jsonFile = trim(jsonFile, any " "+chr(9,10))
 	this.ParseObjectString(jsonFile, 0, len(jsonFile)-1)	
 	return this._datatype <> malformed
 end function
