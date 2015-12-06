@@ -1,8 +1,9 @@
-#define fbJson_DEBUG
-#include once "../fbJson.bi"
+#include once "../../fbJson.bi"
 
 dim as jsonDocument document
-if (document.ReadFile("complextest.json") = false) then end
+if (document.ReadFile("complex_file.json") = false) then end
+
+' Manual access:
 
 print document["Window"]["Listbox"]["Dimensions"]["h"].value
 print document["Window"]["Listbox"]["Dimensions"]["w"].value
@@ -16,4 +17,6 @@ print
 print "---------"
 print
 
-print document.ToString()
+' All array elements of "Label":
+
+print document["Window"]["Label"].ToString()
