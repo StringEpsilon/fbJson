@@ -205,7 +205,7 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 						if ( state = keyToken ) then
 							newKey = trim(mid(jsonString, stateStart, i+1 - stateStart), any " """)
 							state = valueToken
-							stateStart = i+2
+							stateStart = i+1
 						elseif (tokenCount = 0 ) then
 							errorOccured = true
 						end if

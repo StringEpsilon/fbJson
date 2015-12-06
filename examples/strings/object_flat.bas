@@ -1,4 +1,4 @@
-#include once "../fbJson.bi"
+#include once "../../fbJson.bi"
 
 dim as jsonItem item = jsonItem("{""Name"": ""fbJson"", ""Url"": ""https://github.com/StringEpsilon/fbJson"", ""commits"": 29 }")
 
