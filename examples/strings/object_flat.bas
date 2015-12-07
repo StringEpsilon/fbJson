@@ -5,7 +5,8 @@ dim as jsonItem item = jsonItem("{""Name"": ""fbJson"", ""Url"": ""https://githu
 print item["Name"].value
 print item["Url"].Value
 print item[2].Value
-print item["InvalidKey"].Value ' Access to invalid keys or integers
+' To demonstrate: Access via invalid identifiers will do nothing harmful:
+print item["InvalidKey"].Value 
 
 item.RemoveItem("dimensions")
 

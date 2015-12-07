@@ -3,6 +3,6 @@
 
 dim as jsonItem array = jsonItem("[1,2,3,4,5,6,7]")
 
-for i as integer = 0 to array.Count 
+for i as integer = 0 to array.Count -1
 	print array[i].value & " ";
 next

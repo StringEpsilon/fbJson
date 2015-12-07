@@ -43,10 +43,12 @@ type jsonItem
 		
 		declare function AddItem(value as string) as boolean
 		declare function AddItem(item as jsonItem) as boolean
-		
+					
 		declare function RemoveItem(key as string) as boolean
 		declare function RemoveItem(index as integer) as boolean
 		
+		declare function ContainsKey(key as string) as boolean
+				
 end type
 
 constructor jsonItem()
@@ -94,7 +96,8 @@ operator jsonItem.[](index as integer) byref as jsonItem
 end operator
 
 property jsonItem.Count() as integer
-	return ubound(this._children)
+	' +1 because arrays start at 0.
+	return ubound(this._children) + 1
 end property
 
 property jsonItem.DataType() as jsonDataType
@@ -305,7 +308,7 @@ function jsonItem.ToString(level as integer = 0) as string
 		result = "["
 	end if
 		
-	for i as integer = 0 to this.count
+	for i as integer = 0 to this.count - 1
 		if ( this.datatype = jsonObject ) then
 			result += """" & this[i].key & """ : " 
 		end if
@@ -323,7 +326,7 @@ function jsonItem.ToString(level as integer = 0) as string
 				result += """"
 			end if
 		end if
-		if ( i < this.count ) then
+		if ( i < this.Count - 1 ) then
 			result += ","
 		else
 			level -= 1
@@ -357,8 +360,9 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 		child->key = key
 		
 		if ( child->datatype <> malformed ) then
-			redim preserve this._children(this.count +1)
-			this._children(this.count) = child
+			' Okay, this looks weird, because count is ubound()+1.
+			redim preserve this._children(this.Count)
+			this._children(this.Count -1) = child
 			return true
 		else
 			delete child
@@ -379,8 +383,8 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 		child->key = key
 		
 		if ( child->_datatype <> malformed ) then
-			redim preserve this._children(this.count +1)
-			this._children(this.count) = child
+			redim preserve this._children(this.Count)
+			this._children(this.Count-1) = child
 			this._datatype = jsonObject
 			return true
 		else
@@ -397,8 +401,8 @@ function JsonItem.AddItem(newValue as string) as boolean
 		dim child as JsonItem ptr = new jsonItem
 		child->value = newValue
 		if ( child->_datatype <> malformed ) then
-			redim preserve this._children(this.count +1)
-			this._children(this.count) = child
+			redim preserve this._children(this.Count)
+			this._children(this.Count -1) = child
 			return true
 		else
 			delete child
@@ -414,8 +418,8 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
 		*child = item
 		if ( child->_datatype <> malformed ) then
-			redim preserve this._children(this.count +1)
-			this._children(this.count) = child
+			redim preserve this._children(this.count)
+			this._children(this.Count -1) = child
 			return true
 		else
 			delete child
@@ -455,9 +459,9 @@ function JsonItem.RemoveItem(key as string) as boolean
 end function
 
 function JsonItem.RemoveItem(index as integer) as boolean
-	if ( index <> -1 AND index <= this.Count ) then
+	if ( index <> -1 AND index <= this.Count -1) then
 		delete this._children(index)
-		if ( index < this.Count ) then
+		if ( index < this.Count -1 ) then
 			for i as integer = index to this.Count -1
 				this._children(i) = this._children(i+1)
 			next
@@ -469,3 +473,14 @@ function JsonItem.RemoveItem(index as integer) as boolean
 	return false
 end function
 
+function JsonItem.ContainsKey(key as string) as boolean
+	if ( this._datatype <> jsonObject ) then return false
+	
+	for i as integer = 0 to this.Count -1
+		if ( this._children(i)->key = key ) then
+			return true
+		end if
+	next
+	
+	return false
+end function
