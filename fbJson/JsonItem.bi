@@ -20,6 +20,8 @@ type jsonItem
 		declare static function ParseNumber(rawString as string) as string
 		declare sub ParseObjectString(byref jsonString as string, startIndex as integer, endIndex as integer)
 		declare sub ParseArrayString(byref jsonString as string, startIndex as integer, endIndex as integer)
+		
+		declare sub AppendChild(newChild as jsonItem ptr)
 	public:
 		parent as jsonItem ptr
 		key as string
@@ -251,7 +253,6 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			dim child as jsonItem ptr = new jsonItem
 			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
 			
-			child->parent = @this
 			if ( this._datatype = jsonObject ) then
 				child->key = newKey
 				state = none
@@ -269,8 +270,9 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 				child->Value = valueString
 			end if
 			
-			redim preserve this._children(ubound(this._children)+1)
-			this._children(ubound(this._children)) = child
+			if ( this.AppendChild(child) = false ) then
+				delete child
+			end if
 			stateStart = i+1
 		end if
 		
@@ -354,15 +356,12 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 	
 	if ( this._datatype = jsonObject or this._datatype = jsonNull ) then
 		this._datatype = jsonObject
-		
 		dim child as JsonItem ptr = new jsonItem
 		child->value = newValue
 		child->key = key
 		
-		if ( child->datatype <> malformed ) then
-			' Okay, this looks weird, because count is ubound()+1.
-			redim preserve this._children(this.Count)
-			this._children(this.Count -1) = child
+		if ( this.AppendChild(child) ) then
+			this._datatype = jsonObject
 			return true
 		else
 			delete child
@@ -382,9 +381,7 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 		*child = item
 		child->key = key
 		
-		if ( child->_datatype <> malformed ) then
-			redim preserve this._children(this.Count)
-			this._children(this.Count-1) = child
+		if ( this.AppendChild(child) ) then
 			this._datatype = jsonObject
 			return true
 		else
@@ -400,9 +397,7 @@ function JsonItem.AddItem(newValue as string) as boolean
 		this._datatype = jsonArray
 		dim child as JsonItem ptr = new jsonItem
 		child->value = newValue
-		if ( child->_datatype <> malformed ) then
-			redim preserve this._children(this.Count)
-			this._children(this.Count -1) = child
+		if ( this.AppendChild(child) ) then
 			return true
 		else
 			delete child
@@ -417,19 +412,26 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 	if (this._datatype = jsonArray) then
 		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
 		*child = item
-		if ( child->_datatype <> malformed ) then
-			redim preserve this._children(this.count)
-			this._children(this.Count -1) = child
+		if ( this.AppendChild(child) ) then
 			return true
 		else
 			delete child
 			return false
 		end if
-		return true
 	end if
 	return false
 end function
 
+function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
+	if ( child <> 0 andAlso child->_datatype <> malformed) then
+		child->parent = @this
+		redim preserve this._children(this.count)
+		this._children(this.Count -1) = child
+		return true
+	else 
+		return false
+	end if
+end function
 
 function JsonItem.RemoveItem(key as string) as boolean
 	dim as integer index = -1
