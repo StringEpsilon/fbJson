@@ -136,10 +136,9 @@ property jsonItem.DataType() as jsonDataType
 end property
 
 property jsonItem.Value( newValue as string)
-	newValue = trim(newValue, any " " + chr(9,10,13))
-	
+	using fbJsonInternal	
 	' First, handle strings in quotes:
-	if ( left(newValue, 1) = """" ) then 
+	if ( newValue[0] = jsonToken.Quote ) then 
 		if ( right(newValue, 1) = """" ) then
 			this._dataType = jsonString
 			this._value = ""
@@ -188,9 +187,9 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 	dim as boolean isStringOpen = false
 
 	if (this._dataType = jsonNull) then
-		if ( chr(jsonString[startIndex]) = "{" and chr(jsonString[endIndex]) = "}" ) then
+		if ( jsonString[startIndex] = jsonToken.CurlyOpen and jsonString[endIndex] = jsonToken.CurlyClose ) then
 			this._datatype = jsonObject
-		elseif ( chr(jsonString[startIndex]) = "[" and chr(jsonString[endIndex]) = "]" ) then
+		elseif ( jsonString[startIndex] = jsonToken.SquareOpen and jsonString[endIndex] = jsonToken.SquareClose ) then
 			this._dataType = jsonArray
 		end if
 	end if
@@ -217,6 +216,10 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 							stateStart = i+1
 						end if
 					end if
+				else
+					if ( state = keyToken ) then
+						newKey = mid(jsonString, stateStart+1, i - stateStart)
+					end if
 				end if
 			end if
 		case jsonToken.BackSlash
@@ -233,7 +236,6 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 						if ( tokenCount = 0 ) then errorOccured = true
 					else
 						if ( state = keyToken ) then
-							newKey = trim(mid(jsonString, stateStart, i+1 - stateStart), any " """)
 							state = valueToken
 							stateStart = i+1
 						elseif (tokenCount = 0 ) then
@@ -278,10 +280,12 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 			dim child as jsonItem ptr = new jsonItem
 			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
 			
-			if ( left(valueString,1) = "{" and right(valueString,1) = "}" ) then
+			if ( valueString[0] = jsonToken.CurlyOpen andAlso _
+				valueString[len(valueString)-1] = jsonToken.CurlyClose ) then
+					
 				child->_datatype = jsonObject
 				child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
-			elseif ( left(valueString,1) = "[" and right(valueString,1) = "]" ) then
+			elseif ( valueString[0] = jsonToken.SquareOpen andAlso right(valueString,1) = "]" ) then
 				child->_datatype = jsonArray
 				child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
 			else
@@ -389,7 +393,7 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 end function
 
 function JsonItem.AddItem(key as string, item as jsonItem) as boolean
-	if ( key = "" orElse this[key].datatype <> jsonNull ) then
+	if ( len(key) = 0 orElse this[key].datatype <> jsonNull ) then
 		return false
 	end if
 	
