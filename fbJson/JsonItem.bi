@@ -21,7 +21,7 @@ type jsonItem
 		declare sub ParseObjectString(byref jsonString as string, startIndex as integer, endIndex as integer)
 		declare sub ParseArrayString(byref jsonString as string, startIndex as integer, endIndex as integer)
 		
-		declare sub AppendChild(newChild as jsonItem ptr)
+		declare function AppendChild(newChild as jsonItem ptr) as boolean
 	public:
 		parent as jsonItem ptr
 		key as string
@@ -35,6 +35,7 @@ type jsonItem
 		declare property Value() as string
 		declare property Count() as integer
 		declare property DataType() as jsonDataType
+		
 		declare operator [](key as string) byref as jsonItem
 		declare operator [](index as integer) byref as jsonItem
 		
@@ -49,9 +50,10 @@ type jsonItem
 		declare function RemoveItem(key as string) as boolean
 		declare function RemoveItem(index as integer) as boolean
 		
-		declare function ContainsKey(key as string) as boolean
-				
+		declare function ContainsKey(key as string) as boolean	
 end type
+
+#include once "dictionary.bi"
 
 constructor jsonItem()
 	' Nothing to do
@@ -126,7 +128,7 @@ property jsonItem.Value( newValue as string)
 	else
 		' Now handle the other stuff:
 		select case lcase(newValue)
-		case "null", "nan", "infinity", "-infinity":
+		case "null", "nan","+nan","-nan", "infinity", "-infinity":
 			this._value = newValue
 			this._dataType = jsonNull
 		case "true", "false"
@@ -360,7 +362,7 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 		child->value = newValue
 		child->key = key
 		
-		if ( this.AppendChild(child) ) then
+		if ( this.AppendChild(child) = true ) then
 			this._datatype = jsonObject
 			return true
 		else
@@ -423,10 +425,10 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 end function
 
 function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
-	if ( child <> 0 andAlso child->_datatype <> malformed) then
-		child->parent = @this
+	if ( newChild <> 0 ) then
+		newChild->parent = @this
 		redim preserve this._children(this.count)
-		this._children(this.Count -1) = child
+		this._children(this.Count -1) = newChild
 		return true
 	else 
 		return false
@@ -445,19 +447,7 @@ function JsonItem.RemoveItem(key as string) as boolean
 		next
 	end if
 	
-	if ( index <> -1 ) then
-		delete this._children(index)
-		if ( index < this.Count ) then
-			for i as integer = index to this.Count -1
-				this._children(i) = this._children(i+1)
-			next
-		end if
-		
-		redim preserve this._children( this.Count -1 )
-		return true
-	end if
-	
-	return false
+	return this.RemoveItem(index)
 end function
 
 function JsonItem.RemoveItem(index as integer) as boolean
