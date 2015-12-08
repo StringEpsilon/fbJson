@@ -10,6 +10,7 @@ end enum
 
 end namespace
 
+
 type jsonItem
 	protected:
 		_dataType as jsonDataType = jsonNull
@@ -22,6 +23,7 @@ type jsonItem
 		declare sub ParseArrayString(byref jsonString as string, startIndex as integer, endIndex as integer)
 		
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
+		declare function AppendChild(key as string, newChild as jsonItem ptr) as boolean
 	public:
 		parent as jsonItem ptr
 		key as string
@@ -53,7 +55,6 @@ type jsonItem
 		declare function ContainsKey(key as string) as boolean	
 end type
 
-#include once "dictionary.bi"
 
 constructor jsonItem()
 	' Nothing to do
@@ -255,13 +256,6 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 			dim child as jsonItem ptr = new jsonItem
 			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
 			
-			if ( this._datatype = jsonObject ) then
-				child->key = newKey
-				state = none
-			else
-				state = valueToken
-			end if
-			
 			if ( left(valueString,1) = "{" and right(valueString,1) = "}" ) then
 				child->_datatype = jsonObject
 				child->ParseObjectString(jsonString, stateStart, stateStart + len(valuestring) -1)
@@ -272,8 +266,12 @@ sub jsonItem.ParseObjectString(byref jsonString as string, startIndex as integer
 				child->Value = valueString
 			end if
 			
-			if ( this.AppendChild(child) = false ) then
-				delete child
+			if ( this._dataType = jsonObject ) then
+				this.AppendChild(newKey, child)
+				state = none
+			else
+				this.AppendChild(child)
+				state = valueToken
 			end if
 			stateStart = i+1
 		end if
@@ -356,18 +354,19 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 		return false
 	end if
 	
-	if ( this._datatype = jsonObject or this._datatype = jsonNull ) then
+	if ( this._datatype = jsonNull ) then
 		this._datatype = jsonObject
+	end if
+	
+	if ( this._datatype = jsonObject ) then
+	
 		dim child as JsonItem ptr = new jsonItem
 		child->value = newValue
-		child->key = key
 		
-		if ( this.AppendChild(child) = true ) then
-			this._datatype = jsonObject
+		if ( this.AppendChild(key,child) = true ) then
 			return true
 		else
 			delete child
-			return false
 		end if
 	end if
 	return false
@@ -377,19 +376,15 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 	if ( key = "" orElse this[key].datatype <> jsonNull ) then
 		return false
 	end if
-
-	if ( ( this._datatype = jsonObject or this._datatype = jsonNull ) ) then
+	
+	if ( this._datatype = jsonNull ) then
+		this._datatype = jsonObject
+	end if
+	
+	if ( ( this._datatype = jsonObject ) ) then
 		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
 		*child = item
-		child->key = key
-		
-		if ( this.AppendChild(child) ) then
-			this._datatype = jsonObject
-			return true
-		else
-			delete child
-			return false
-		end if
+		return this.AppendChild(key, child)
 	end if
 	return false
 end function
@@ -399,13 +394,7 @@ function JsonItem.AddItem(newValue as string) as boolean
 		this._datatype = jsonArray
 		dim child as JsonItem ptr = new jsonItem
 		child->value = newValue
-		if ( this.AppendChild(child) ) then
-			return true
-		else
-			delete child
-			return false
-		end if
-		return true
+		return ( this.AppendChild(child) )
 	end if
 	return false
 end function
@@ -414,26 +403,37 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 	if (this._datatype = jsonArray) then
 		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
 		*child = item
-		if ( this.AppendChild(child) ) then
-			return true
-		else
-			delete child
-			return false
-		end if
+		return ( this.AppendChild(child) ) 		
 	end if
 	return false
 end function
 
 function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
-	if ( newChild <> 0 ) then
+	if ( this._dataType = jsonArray and newChild <> 0 ) then
 		newChild->parent = @this
 		redim preserve this._children(this.count)
 		this._children(this.Count -1) = newChild
 		return true
-	else 
+	else
+		if newChild <> 0 then delete newChild
 		return false
 	end if
 end function
+
+function jsonItem.AppendChild(key as string, newChild as jsonItem ptr) as boolean
+	if ( this._dataType = jsonObject andAlso newChild <> 0 and key <> "" ) then
+		newChild->parent = @this
+		newChild->key = key
+		redim preserve this._children(this.count)
+		this._children(this.Count -1) = newChild
+		return true
+	else
+		if ( newChild <> 0 ) then delete newChild
+		return false
+	end if
+end function
+
+
 
 function JsonItem.RemoveItem(key as string) as boolean
 	dim as integer index = -1
