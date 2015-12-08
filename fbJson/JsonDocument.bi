@@ -27,15 +27,14 @@ operator jsonDocument.[](index as integer) byref as jsonItem
 end operator
 
 function jsonDocument.ReadFile(path as string) as boolean
-	dim as string inputLine 
 	dim as string jsonFile
 	dim as integer ff = freefile()
 	
-	open path for input as #ff 
-		while (not eof(ff))
-			line input #ff, inputLine 
-			jsonFile += inputLine + chr(10)
-		wend
+	open path for binary as #ff 
+	' I don't know if there is any better way to get the whole file at once.
+	jsonFile = space(lof(ff))
+	get #ff, , jsonFile
+	' But using "get #" is definetly faster.
 	close #ff
 	
 	jsonFile = trim(jsonFile, any " "+chr(9,10))
