@@ -2,11 +2,13 @@
 
 A small JSON library written in FreeBASIC
 
-## Why?
+## Stability
 
-The existing parsers written in FB had bugs I could not fix with reasonable effort and I did not like the API. 
+Current stable is 0.9. All examples compile and work as intended with fbc version 1.04, 64bit. 
 
-Also, it's a nice opportunity to learn something.
+I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits.
+
+Please report all issues.
 
 ## API
 
