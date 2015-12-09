@@ -4,7 +4,7 @@ A small JSON library written in FreeBASIC
 
 ## Stability
 
-Current stable is 0.9. All examples compile and work as intended with fbc version 1.04, 64bit. 
+Current stable is 0.9.1 All examples compile and work as intended with fbc version 1.04, 64bit. 
 
 I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits.
 

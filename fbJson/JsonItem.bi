@@ -44,7 +44,7 @@ type jsonItem
 		
 		declare destructor()
 		
-		declare property Value(newValue as string)
+		declare property Value(byref newValue as string)
 		declare property Value() as string
 		declare property Count() as integer
 		declare property DataType() as jsonDataType
@@ -135,16 +135,16 @@ property jsonItem.DataType() as jsonDataType
 	return this._datatype
 end property
 
-property jsonItem.Value( newValue as string)
+property jsonItem.Value( byref newValue as string)
 	using fbJsonInternal	
 	' First, handle strings in quotes:
 	if ( newValue[0] = jsonToken.Quote ) then 
-		if ( right(newValue, 1) = """" ) then
+		if ( newValue[len(newValue)-1] = jsonToken.Quote ) then
 			this._dataType = jsonString
 			this._value = ""
 			
 			for i as integer = 1 to len(newValue)-2
-				if chr(newValue[i]) <> "\" then
+				if ( newValue[i] <> jsonToken.BackSlash ) then
 					this._value += chr(newValue[i])
 				end if
 			next
@@ -164,7 +164,7 @@ property jsonItem.Value( newValue as string)
 			' And for convience: Everything that's none of the above and not a number, we save as string:
 			this._dataType = jsonNumber
 			this._value = str(cdbl(newValue))
-			if ( this._value = "0" and newValue <> "0" ) then
+			if ( this._value = "0" andAlso newValue <> "0" ) then
 				this._value = newValue
 				this._dataType = jsonString
 			end if
@@ -187,9 +187,9 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 	dim as boolean isStringOpen = false
 
 	if (this._dataType = jsonNull) then
-		if ( jsonString[startIndex] = jsonToken.CurlyOpen and jsonString[endIndex] = jsonToken.CurlyClose ) then
+		if ( jsonString[startIndex] = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
 			this._datatype = jsonObject
-		elseif ( jsonString[startIndex] = jsonToken.SquareOpen and jsonString[endIndex] = jsonToken.SquareClose ) then
+		elseif ( jsonString[startIndex] = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
 			this._dataType = jsonArray
 		end if
 	end if
@@ -198,7 +198,7 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		state = valueToken
 	end if
 	
-	if (startIndex +1 = endIndex) then
+	if (startIndex +1 >= endIndex) then
 		return
 	end if
 	
@@ -206,10 +206,10 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		' Because strings can contain other json tokens, we handle strings seperately:
 		select case as const jsonString[i]
 		case jsonToken.Quote
-			if ( chr(jsonString[i-1]) <> "\" ) then
+			if ( jsonString[i-1] <> jsonToken.BackSlash ) then
 				isStringOpen = not(isStringOpen)
 				
-				if (isStringOpen = true) then
+				if ( isStringOpen = true ) then
 					if ( this._dataType <> jsonArray ) then
 						if ( state = none ) then 
 							state = keyToken
@@ -243,24 +243,17 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 						end if
 					end if
 				case jsonToken.Comma:
-					if( this._dataType = jsonArray ) then
-						if ( state = valueToken and tokenCount = 0 ) then
-							state = valueTokenClosed
-						end if
-					else
-						if (state = valueToken and tokenCount = 0) then
-							state = valueTokenClosed
-						end if
+					if (tokenCount = 0 andAlso state = valueToken ) then
+						state = valueTokenClosed
 					end if
 				case jsonToken.CurlyOpen, jsonToken.SquareOpen
-					if ( state = valueToken and tokenCount = 0 ) then
+					if ( tokenCount = 0 andAlso state = valueToken ) then
 						stateStart = i
 					end if
 					tokenCount += 1
 				case jsonToken.CurlyClose, jsonToken.SquareClose
 					tokenCount -= 1
 				case jsonToken.Space, jsonToken.Tab, jsonToken.NewLine, jsonToken.Quote
-					
 				case else:
 					if (state <> valueToken) then
 						errorOccured = true
@@ -269,7 +262,7 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		end if	
 		
 		if ( i =  endIndex -1 ) then
-			if ( isStringOpen = -1 or tokenCount <> 0  or state <> valueToken) then
+			if ( isStringOpen = -1 orElse tokenCount <> 0 orElse state <> valueToken ) then
 				errorOccured = true
 			end if
 			state = valueTokenClosed 
@@ -285,7 +278,9 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 					
 				child->_datatype = jsonObject
 				child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
-			elseif ( valueString[0] = jsonToken.SquareOpen andAlso right(valueString,1) = "]" ) then
+			elseif ( valueString[0] = jsonToken.SquareOpen andAlso _
+				valueString[len(valueString)-1] = jsonToken.SquareClose ) then
+				
 				child->_datatype = jsonArray
 				child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
 			else
@@ -376,7 +371,7 @@ function jsonItem.ToString(level as integer = 0) as string
 end function
 
 function JsonItem.AddItem(key as string, newValue as string) as boolean
-	if ( key = "" orElse this[key].datatype <> jsonNull ) then
+	if ( len(key) = 0 orElse this[key].datatype <> jsonNull ) then
 		return false
 	end if
 	
@@ -384,7 +379,7 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 		this._datatype = jsonObject
 	end if
 	
-	if ( ( this._datatype = jsonObject ) ) then
+	if ( this._datatype = jsonObject ) then
 		dim child as JsonItem ptr = new jsonItem
 		child->Value = newValue
 		return this.AppendChild(key, child)
@@ -401,7 +396,7 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 		this._datatype = jsonObject
 	end if
 	
-	if ( ( this._datatype = jsonObject ) ) then
+	if ( this._datatype = jsonObject ) then
 		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
 		*child = item
 		return this.AppendChild(key, child)
@@ -429,7 +424,7 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 end function
 
 function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
-	if ( this._dataType = jsonArray and newChild <> 0 ) then
+	if ( this._dataType = jsonArray andAlso newChild <> 0 ) then
 		newChild->parent = @this
 		redim preserve this._children(this.count)
 		this._children(this.Count -1) = newChild
@@ -441,7 +436,7 @@ function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
 end function
 
 function jsonItem.AppendChild(key as string, newChild as jsonItem ptr) as boolean
-	if ( this._dataType = jsonObject andAlso newChild <> 0 and key <> "" ) then
+	if ( this._dataType = jsonObject andAlso newChild <> 0 andAlso len(key) <> 0 ) then
 		newChild->parent = @this
 		newChild->key = key
 		redim preserve this._children(this.count)
@@ -469,7 +464,7 @@ function JsonItem.RemoveItem(key as string) as boolean
 end function
 
 function JsonItem.RemoveItem(index as integer) as boolean
-	if ( index <> -1 AND index <= this.Count -1 ) then
+	if ( index <= this.Count -1 andAlso index > -1 ) then
 		delete this._children(index)
 		if ( index < this.Count -1 ) then
 			for i as integer = index to this.Count -1
