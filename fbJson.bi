@@ -1,4 +1,2 @@
 
-#include once "fbJson/JsonDatatype.bi"
-#include once "fbJson/JsonItem.bi"
-#include once "fbJson/JsonDocument.bi"
+#include once "src/JsonDocument.bas"

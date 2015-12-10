@@ -1,97 +1,5 @@
-
-namespace fbJsonInternal
-
-enum jsonToken
-	tab = 9
-	newLine = 10
-	space = 32
-	quote = 34
-	comma = 44
-	colon = 58
-	squareOpen = 91
-	backSlash = 92
-	squareClose = 93
-	curlyOpen = 123
-	curlyClose = 125
-	lcaseU = 117
-end enum
-
-enum parserState
-	none = -1
-	keyToken = 0
-	valueToken
-	valueTokenClosed
-end enum
-
-sub DeEscapeString(byref escapedString as string)
-	dim as uinteger length = len(escapedString)-1
-	dim as uinteger trimSize = 0	
-	for i as uinteger = 0 to length
-		if ( escapedString[i] = BackSlash ) then
-			if ( i < length andAlso escapedString[i+1] = jsonToken.lcaseU ) then
-				' TODO: Decode \u0000 notation.
-			else
-				escapedString[i-trimsize] = escapedString[i+1]
-				trimSize+=1
-			end if
-		elseif ( trimSize > 0 ) then
-			escapedString[i-trimsize] = escapedString[i]
-		end if
-	next
-	if ( trimSize > 0 ) then
-		escapedString = left(escapedString, length - trimSize+1)
-	end if
-end sub
-
-end namespace
-
-type jsonItem
-	protected:
-		_dataType as jsonDataType = jsonNull
-		_value as string
-		_children(any) as jsonItem ptr
-		_error as string
-		_parent as jsonItem ptr
-		
-		declare sub Parse(byref jsonString as string, startIndex as integer, endIndex as integer)
-		
-		declare function AppendChild(newChild as jsonItem ptr) as boolean
-		declare function AppendChild(key as string, newChild as jsonItem ptr) as boolean
-	public:
-		
-		key as string
-		
-		declare constructor()
-		declare constructor(byref jsonString as string)
-		
-		declare destructor()
-		
-		declare property Value(byref newValue as string)
-		declare property Value() as string
-		
-		declare property Count() as integer
-		declare property DataType() as jsonDataType
-		
-		declare operator [](key as string) byref as jsonItem
-		declare operator [](index as integer) byref as jsonItem
-		
-		declare property Parent() byref as jsonItem
-		
-		declare operator LET(A as jsonItem)
-		
-		declare function ToString(level as integer = 0) as string
-		
-		declare function AddItem(key as string, value as string) as boolean
-		declare function AddItem(key as string, item as jsonItem) as boolean
-		
-		declare function AddItem(value as string) as boolean
-		declare function AddItem(item as jsonItem) as boolean
-					
-		declare function RemoveItem(key as string) as boolean
-		declare function RemoveItem(index as integer) as boolean
-		
-		declare function ContainsKey(key as string) as boolean	
-end type
+#include once "../include/JsonItem.bi"
+#include once "internals.bas"
 
 constructor jsonItem()
 	' Nothing to do
@@ -227,7 +135,7 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		state = valueToken
 	end if
 	
-	if (startIndex +1 >= endIndex) then
+	if (startIndex +1 >= endIndex ) then
 		return
 	end if
 	
