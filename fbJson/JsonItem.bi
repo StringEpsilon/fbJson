@@ -1,4 +1,6 @@
 
+#include once "JsonDatatype.bi"
+
 namespace fbJsonInternal
 
 enum jsonToken
@@ -174,7 +176,7 @@ property jsonItem.Value( byref newValue as string)
 	if ( newValue[0] = jsonToken.Quote ) then 
 		if ( newValue[len(newValue)-1] = jsonToken.Quote ) then
 			this._dataType = jsonString
-			this._value = newValue
+			this._value = mid(newValue,2, len(newValue)-2)
 			DeEscapeString(this._value)
 		else
 			this._dataType = malformed
