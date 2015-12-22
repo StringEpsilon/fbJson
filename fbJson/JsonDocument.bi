@@ -47,7 +47,7 @@ function jsonDocument.SaveFile(path as string, overwrite as boolean = true) as b
 	dim as integer ff = freefile()
 	dim as integer fileError 
 	
-	if ( len(dir(path)) > 0 and overwrite = false ) then return false
+	if ( cbool(len(dir(path)) > 0) and overwrite = false ) then return false
 	
 	fileError = open(path for output as #ff)
 	if (fileError = 0 ) then
