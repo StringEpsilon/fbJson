@@ -4,7 +4,7 @@ A small JSON library written in FreeBASIC
 
 ## Stability
 
-Current stable is 0.9.1 All examples compile and work as intended with fbc version 1.04, 64bit. 
+Current stable is 0.9.3 All examples compile and work as intended with fbc version 1.04, 64bit. 
 
 I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits.
 
@@ -76,5 +76,3 @@ Writes the content of the item to a give path. Returns true if successful. Secon
 2) Fix style and naming.
 
 3) Add some tests.
-
-Maybe, just maybe, use a hashtable for access via key.
