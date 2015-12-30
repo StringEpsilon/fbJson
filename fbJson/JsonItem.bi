@@ -55,7 +55,7 @@ type jsonItem
 		_error as string
 		_parent as jsonItem ptr
 		
-		declare sub Parse(byref jsonString as string, startIndex as integer, endIndex as integer)
+		declare sub Parse(byref jsonString as string, startIndex as integer, endIndex as integer) 
 		
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 		declare function AppendChild(key as string, newChild as jsonItem ptr) as boolean
@@ -207,7 +207,7 @@ property jsonItem.Value() as string
 	return this._value
 end property
 
-sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex as integer)
+sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex as integer) 
 	using fbJsonInternal
 	
 	dim as boolean errorOccured = false
@@ -305,28 +305,33 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 			dim child as jsonItem ptr = new jsonItem
 			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
 			
-			if ( valueString[0] = jsonToken.CurlyOpen andAlso _
-				valueString[len(valueString)-1] = jsonToken.CurlyClose ) then
-					
-				child->_datatype = jsonObject
-				child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
-			elseif ( valueString[0] = jsonToken.SquareOpen andAlso _
-				valueString[len(valueString)-1] = jsonToken.SquareClose ) then
+			if ( len(valueString) > 0 ) then
 				
-				child->_datatype = jsonArray
-				child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
+				if ( valueString[0] = jsonToken.CurlyOpen andAlso _
+					valueString[len(valueString)-1] = jsonToken.CurlyClose ) then
+						
+					child->_datatype = jsonObject
+					child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
+				elseif ( valueString[0] = jsonToken.SquareOpen andAlso _
+					valueString[len(valueString)-1] = jsonToken.SquareClose ) then
+					
+					child->_datatype = jsonArray
+					child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
+				else
+					child->Value = valueString
+				end if
+				
+				if ( this._dataType = jsonObject ) then
+					this.AppendChild(newKey, child)
+					state = none
+				else
+					this.AppendChild(child)
+					state = valueToken
+				end if
+				stateStart = i+1
 			else
-				child->Value = valueString
+				errorOccured = true
 			end if
-			
-			if ( this._dataType = jsonObject ) then
-				this.AppendChild(newKey, child)
-				state = none
-			else
-				this.AppendChild(child)
-				state = valueToken
-			end if
-			stateStart = i+1
 		end if
 		
 		if ( errorOccured ) then
@@ -460,6 +465,9 @@ function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
 		newChild->_parent = @this
 		redim preserve this._children(this.count)
 		this._children(this.Count -1) = newChild
+		if ( newChild->datatype = jsonDataType.malformed ) then
+			this._datatype = malformed
+		end if
 		return true
 	else
 		if newChild <> 0 then delete newChild
@@ -468,12 +476,9 @@ function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
 end function
 
 function jsonItem.AppendChild(key as string, newChild as jsonItem ptr) as boolean
-	if ( this._dataType = jsonObject andAlso newChild <> 0 andAlso len(key) <> 0 ) then
-		newChild->_parent = @this
+	if ( cbool(len(key) <> 0) AndAlso this.ContainsKey(key) = false ) then
 		newChild->key = key
-		redim preserve this._children(this.count)
-		this._children(this.Count -1) = newChild
-		return true
+		return this.AppendChild(newChild)
 	else
 		if ( newChild <> 0 ) then delete newChild
 		return false
