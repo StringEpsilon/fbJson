@@ -171,7 +171,10 @@ property jsonItem.DataType() as jsonDataType
 end property
 
 property jsonItem.Value( byref newValue as string)
-	using fbJsonInternal	
+	using fbJsonInternal
+	
+	' TODO: Seperate this property from the parsing process.
+	' Also: Validate numbers (trailing decimal points, etc.)
 	' First, handle strings in quotes:
 	if ( newValue[0] = jsonToken.Quote ) then 
 		if ( newValue[len(newValue)-1] = jsonToken.Quote ) then
@@ -182,22 +185,33 @@ property jsonItem.Value( byref newValue as string)
 			this._dataType = malformed
 		end if
 	else
-		' Now handle the other stuff:
+		
 		select case lcase(newValue)
-		case "null", "nan","+nan","-nan", "infinity", "-infinity":
+		case "null"
 			this._value = newValue
 			this._dataType = jsonNull
 		case "true", "false"
 			this._value = newValue
 			this._dataType = jsonBool
 		case else:
-			this._dataType = jsonNumber
-			this._value = str(cdbl(newValue))
-			' And for convience: Everything that's none of the above and not a number, we save as string:
-			if ( this._value = "0" andAlso newValue <> "0" ) then
-				this._value = newValue
-				DeEscapeString(this._value)
-				this._dataType = jsonString
+			
+			dim as byte lastCharacter = newValue[len(newValue)-1]
+			if ( lastCharacter > 57 orElse lastCharacter < 48 ) then
+				' IF the current item is already a string, we can be a little more forgiving
+				' This allows for easier manipulation of items in code 
+				' (because you don't have to include the quotes every time)
+				' This solution is of course ugly as f..., but whatever.
+				if ( this._datatype = jsonString ) then
+					this._value = newValue
+				else
+					this._datatype = malformed
+				end if
+			else
+				this._dataType = jsonNumber
+				this._value = str(cdbl(newValue))
+				if ( this._value = "0" andAlso newValue <> "0" ) then
+					this._datatype = malformed
+				end if
 			end if
 		end select
 	end if
@@ -461,7 +475,7 @@ function JsonItem.AddItem(item as jsonItem) as boolean
 end function
 
 function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
-	if ( this._dataType = jsonArray andAlso newChild <> 0 ) then
+	if ( newChild <> 0 ) then
 		newChild->_parent = @this
 		redim preserve this._children(this.count)
 		this._children(this.Count -1) = newChild
