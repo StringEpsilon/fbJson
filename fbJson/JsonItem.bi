@@ -379,20 +379,23 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		if ( errorOccured ) then
 			dim as integer lineNumber = 1
 			dim as integer position = 1
-			for i as integer = 0 to i
-				if ( jsonString[i] = 10 ) then
+			dim as integer lastBreak
+			for j as integer = 0 to i
+				if ( jsonString[j] = 10 ) then
 					lineNumber +=1
 					position = 1
+					lastBreak = j
 				end if
 				position +=1
 			next
-			
+
 			if ( isStringOpen ) then
 				this._error = "Expected closing quote, found: "+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
 			else
 				this._error = "Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
 			end if
 			#ifdef fbJson_DEBUG
+				print mid(jsonString, lastBreak +1, i - lastBreak)
 				print "fbJSON Error: " & this._error
 			#endif
 			this._dataType = malformed
