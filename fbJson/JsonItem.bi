@@ -332,7 +332,35 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 					child->_datatype = jsonArray
 					child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
 				else
-					child->Value = valueString
+					if ( valueString[0] = jsonToken.Quote ) then 
+						if ( valueString[len(valueString)-1] = jsonToken.Quote ) then
+							child->_dataType = jsonDataType.jsonString
+							child->_value = mid(valueString,2, len(valueString)-2)
+							DeEscapeString(child->_value)
+						else
+							child->_dataType = malformed
+						end if
+					else
+						select case lcase(valueString)
+						case "null"
+							child->_value = valueString
+							child->_dataType = jsonNull
+						case "true", "false"
+							child->_value = valueString
+							child->_dataType = jsonBool
+						case else:
+							dim as byte lastCharacter = valueString[len(valueString)-1]
+							if ( lastCharacter <= 57 orElse lastCharacter >= 48 ) then
+								child->_dataType = jsonNumber
+								child->_value = str(cdbl(valueString))
+								if ( child->_value = "0" andAlso valueString <> "0" ) then
+									child->_datatype = malformed
+								end if
+							else
+								child->_datatype = malformed
+							end if
+						end select
+					end if
 				end if
 				
 				if ( this._dataType = jsonObject ) then
