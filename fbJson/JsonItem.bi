@@ -55,7 +55,7 @@ type jsonItem
 		_error as string
 		_parent as jsonItem ptr
 		
-		declare sub Parse(byref jsonString as string, startIndex as integer, endIndex as integer) 
+		declare static sub Parse(currentItem as jsonItem ptr = 0,byref jsonString as string, startIndex as integer, endIndex as integer) 
 		
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 		declare function AppendChild(key as string, newChild as jsonItem ptr) as boolean
@@ -101,7 +101,7 @@ end constructor
 
 constructor jsonItem(byref jsonString as string)
 	jsonString = trim(jsonString, any " "+chr(9,10) )
-	this.Parse(jsonString, 0, len(jsonstring)-1)
+	jsonItem.Parse(@this, jsonString, 0, len(jsonstring)-1)
 end constructor
 
 destructor jsonItem()
@@ -111,6 +111,7 @@ destructor jsonItem()
 end destructor
 
 operator jsonItem.LET(copy as jsonItem)
+	this.destructor()
 	this._value = copy._value
 	this._dataType = copy._dataType
 	this._error = copy._error
@@ -173,8 +174,6 @@ end property
 property jsonItem.Value( byref newValue as string)
 	using fbJsonInternal
 	
-	' TODO: Seperate this property from the parsing process.
-	' Also: Validate numbers (trailing decimal points, etc.)
 	' First, handle strings in quotes:
 	if ( newValue[0] = jsonToken.Quote ) then 
 		if ( newValue[len(newValue)-1] = jsonToken.Quote ) then
@@ -221,9 +220,9 @@ property jsonItem.Value() as string
 	return this._value
 end property
 
-sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex as integer) 
+sub jsonItem.Parse(currentItem as jsonItem ptr, byref jsonString as string, startIndex as integer, endIndex as integer) 
 	using fbJsonInternal
-	
+	'dim as threadwaiter waiter
 	dim as boolean errorOccured = false
 	dim as string newKey
 	dim as integer currentLevel
@@ -231,20 +230,20 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 	dim as parserState state = none
 	dim as boolean isStringOpen = false
 
-	if (this._dataType = jsonNull) then
+	if (currentItem->_dataType = jsonNull) then
 		if ( jsonString[startIndex] = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
-			this._datatype = jsonObject
+			currentItem->_datatype = jsonObject
 		elseif ( jsonString[startIndex] = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
-			this._dataType = jsonArray
+			currentItem->_dataType = jsonArray
 		end if
 	end if
 	
-	if (this._datatype = jsonarray) then 
+	if (currentItem->_datatype = jsonarray) then 
 		state = valueToken
 	end if
 	
 	if (startIndex +1 >= endIndex) then
-		return
+		return 
 	end if
 	
 	for i as integer = startIndex +1 to endIndex -1
@@ -255,7 +254,7 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 				isStringOpen = not(isStringOpen)
 				
 				if ( isStringOpen = true ) then
-					if ( this._dataType <> jsonArray ) then
+					if ( currentItem->_dataType <> jsonArray ) then
 						if ( state = none ) then 
 							state = keyToken
 							stateStart = i+1
@@ -277,7 +276,7 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		if ( isStringOpen = false ) then
 			select case as const jsonString[i]
 				case jsonToken.Colon:
-					if ( this._dataType = jsonArray ) then
+					if ( currentItem->_dataType = jsonArray ) then
 						if ( currentLevel = 0 ) then errorOccured = true
 					else
 						if ( state = keyToken ) then
@@ -318,24 +317,24 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 		if ( state = valueTokenClosed ) then
 			dim child as jsonItem ptr = new jsonItem
 			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
+			dim length as integer = len(valuestring)
 			
-			if ( len(valueString) > 0 ) then
-				
+			if ( length > 0 ) then
 				if ( valueString[0] = jsonToken.CurlyOpen andAlso _
-					valueString[len(valueString)-1] = jsonToken.CurlyClose ) then
-						
+					valueString[length-1] = jsonToken.CurlyClose ) then
+					
 					child->_datatype = jsonObject
-					child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
+					jsonItem.parse(child, jsonString, stateStart, stateStart + length -1) 
 				elseif ( valueString[0] = jsonToken.SquareOpen andAlso _
-					valueString[len(valueString)-1] = jsonToken.SquareClose ) then
+					valueString[length-1] = jsonToken.SquareClose ) then
 					
 					child->_datatype = jsonArray
-					child->Parse(jsonString, stateStart, stateStart + len(valuestring) -1)
+					jsonItem.parse(child, jsonString, stateStart, stateStart + length -1) 
 				else
 					if ( valueString[0] = jsonToken.Quote ) then 
-						if ( valueString[len(valueString)-1] = jsonToken.Quote ) then
+						if ( valueString[length-1] = jsonToken.Quote ) then
 							child->_dataType = jsonDataType.jsonString
-							child->_value = mid(valueString,2, len(valueString)-2)
+							child->_value = mid(valueString,2, length-2)
 							DeEscapeString(child->_value)
 						else
 							child->_dataType = malformed
@@ -349,7 +348,7 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 							child->_value = valueString
 							child->_dataType = jsonBool
 						case else:
-							dim as byte lastCharacter = valueString[len(valueString)-1]
+							dim as byte lastCharacter = valueString[length-1]
 							if ( lastCharacter <= 57 orElse lastCharacter >= 48 ) then
 								child->_dataType = jsonNumber
 								child->_value = str(cdbl(valueString))
@@ -363,13 +362,18 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 					end if
 				end if
 				
-				if ( this._dataType = jsonObject ) then
-					this.AppendChild(newKey, child)
+				if ( currentItem->_dataType = jsonObject ) then
+					if ( cbool(len(newKey) <> 0) AndAlso currentItem->ContainsKey(newKey) = false ) then
+						child->key = newKey
+					else
+						currentItem->_datatype = malformed
+					end if
 					state = none
 				else
-					this.AppendChild(child)
 					state = valueToken
 				end if
+				currentItem->AppendChild(child)
+				
 				stateStart = i+1
 			else
 				errorOccured = true
@@ -390,15 +394,15 @@ sub jsonItem.Parse(byref jsonString as string, startIndex as integer, endIndex a
 			next
 
 			if ( isStringOpen ) then
-				this._error = "Expected closing quote, found: "+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+				currentItem->_error = "Expected closing quote, found: "+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
 			else
-				this._error = "Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+				currentItem->_error = "Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
 			end if
 			#ifdef fbJson_DEBUG
 				print mid(jsonString, lastBreak +1, i - lastBreak)
-				print "fbJSON Error: " & this._error
+				print "fbJSON Error: " & currentItem->_error
 			#endif
-			this._dataType = malformed
+			currentItem->_dataType = malformed
 			return
 		end if
 	next

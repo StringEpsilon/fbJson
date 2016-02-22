@@ -38,7 +38,7 @@ function jsonDocument.ReadFile(path as string) as boolean
 	close #ff
 	
 	jsonFile = trim(jsonFile, any " "+chr(9,10))
-	this.Parse(jsonFile, 0, len(jsonFile)-1)	
+	this.Parse(@this, jsonFile, 0, len(jsonFile)-1)	
 	return this._datatype <> malformed
 end function
 
