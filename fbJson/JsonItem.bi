@@ -227,7 +227,7 @@ sub jsonItem.Parse(currentItem as jsonItem ptr, byref jsonString as string, star
 	dim as string newKey
 	dim as integer currentLevel
 	dim as integer stateStart = startIndex + 1
-	dim as parserState state = none
+	dim as parserState state = parserState.none
 	dim as boolean isStringOpen = false
 
 	if (currentItem->_dataType = jsonNull) then
@@ -255,7 +255,7 @@ sub jsonItem.Parse(currentItem as jsonItem ptr, byref jsonString as string, star
 				
 				if ( isStringOpen = true ) then
 					if ( currentItem->_dataType <> jsonArray ) then
-						if ( state = none ) then 
+						if ( state = parserState.none ) then 
 							state = keyToken
 							stateStart = i+1
 						end if
@@ -368,7 +368,7 @@ sub jsonItem.Parse(currentItem as jsonItem ptr, byref jsonString as string, star
 					else
 						currentItem->_datatype = malformed
 					end if
-					state = none
+					state = parserState.none
 				else
 					state = valueToken
 				end if
