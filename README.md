@@ -4,11 +4,18 @@ A small JSON library written in FreeBASIC
 
 ## Stability
 
-Current stable is 0.9.3 All examples compile and work as intended with fbc version 1.04, 64bit. 
+Current stable is 0.11 All examples compile and work as intended with fbc version 1.05, 64bit. 
 
-I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits.
+I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits. The API however should not change dramatically.
 
 Please report all issues.
+
+## The code ##
+
+The main parser ( `jsonTime.Parse()` ) is written do to as little allocations, string comparisons and concatinations as possible. There are only two points in the code,
+where I create a partial copy of the parsed string, because it's slow to do so. The main bottleneck, according to my tests is indeed the single TRIM()-call I have in the code.
+
+This code is deliberatly ugly for the sake of performance. I even considered (and crudely benchmarked) the use of GOTO to make errorhandling faster ;-)
 
 ## API
 

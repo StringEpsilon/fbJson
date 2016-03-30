@@ -1,4 +1,3 @@
-
 #include once "JsonDatatype.bi"
 
 namespace fbJsonInternal
@@ -12,28 +11,51 @@ enum jsonToken
 	colon = 58
 	squareOpen = 91
 	backSlash = 92
+	forwardSlash = 47
 	squareClose = 93
 	curlyOpen = 123
 	curlyClose = 125
 	lcaseU = 117
+	lcaseB = 98
+	lcaseF = 102
+	lcaseN = 110
+	lcaseR = 114
+	lcaseT = 116
 end enum
 
 enum parserState
-	none = -1
-	keyToken = 0
+	jsonError = -1
+	none = 0
+	keyToken
 	valueToken
 	valueTokenClosed
+	nestEnd
 end enum
 
-sub DeEscapeString(byref escapedString as string)
+function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
 	dim as uinteger trimSize = 0	
 	for i as uinteger = 0 to length
 		if ( escapedString[i] = BackSlash ) then
-			if ( i < length andAlso escapedString[i+1] = jsonToken.lcaseU ) then
-				' TODO: Decode \u0000 notation.
-			else
-				escapedString[i-trimsize] = escapedString[i+1]
+			if ( i < length ) then
+				select case as const escapedString[i-trimsize+1]
+				case quote, backSlash, forwardSlash:
+					'escapedString[i-trimsize+1] = escapedString[i-trimsize+1]
+				case lcaseB
+					escapedString[i-trimsize+1] = 8 ' backspace
+				case lcaseF
+					escapedString[i-trimsize+1] = 12
+				case lcaseN
+					escapedString[i-trimsize+1] = 10
+				case lcaseR
+					escapedString[i-trimsize+1] = 13
+				case lcaseT
+					escapedString[i-trimsize+1] = 9 ' tab
+				case lcaseU
+					' TO DO: Escape unicode sequences.
+				case else
+					return false
+				end select
 				trimSize+=1
 			end if
 		elseif ( trimSize > 0 ) then
@@ -43,7 +65,8 @@ sub DeEscapeString(byref escapedString as string)
 	if ( trimSize > 0 ) then
 		escapedString = left(escapedString, length - trimSize+1)
 	end if
-end sub
+	return true
+end function
 
 end namespace
 
@@ -55,7 +78,7 @@ type jsonItem
 		_error as string
 		_parent as jsonItem ptr
 		
-		declare static sub Parse(currentItem as jsonItem ptr = 0,byref jsonString as string, startIndex as integer, endIndex as integer) 
+		declare sub Parse(byref jsonString as string,  endIndex as integer) 
 		
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 		declare function AppendChild(key as string, newChild as jsonItem ptr) as boolean
@@ -101,7 +124,7 @@ end constructor
 
 constructor jsonItem(byref jsonString as string)
 	jsonString = trim(jsonString, any " "+chr(9,10) )
-	jsonItem.Parse(@this, jsonString, 0, len(jsonstring)-1)
+	this.Parse(jsonString, len(jsonstring)-1)
 end constructor
 
 destructor jsonItem()
@@ -116,7 +139,7 @@ operator jsonItem.LET(copy as jsonItem)
 	this._dataType = copy._dataType
 	this._error = copy._error
 	
-	if ( ubound(copy._children) >= 0 ) then
+	if (ubound(copy._children) >= 0) then
 		redim this._children(ubound(copy._children))
 		for i as integer = 0 to ubound(copy._children)
 			this._children(i) = callocate(sizeOf(jsonItem))
@@ -179,7 +202,9 @@ property jsonItem.Value( byref newValue as string)
 		if ( newValue[len(newValue)-1] = jsonToken.Quote ) then
 			this._dataType = jsonString
 			this._value = mid(newValue,2, len(newValue)-2)
-			DeEscapeString(this._value)
+			if ( DeEscapeString(this._value) = false ) then
+				this._datatype = malformed
+			end if
 		else
 			this._dataType = malformed
 		end if
@@ -220,170 +245,201 @@ property jsonItem.Value() as string
 	return this._value
 end property
 
-sub jsonItem.Parse(currentItem as jsonItem ptr, byref jsonString as string, startIndex as integer, endIndex as integer) 
+sub jsonItem.Parse(byref jsonString as string, endIndex as integer) 
 	using fbJsonInternal
-	'dim as threadwaiter waiter
-	dim as boolean errorOccured = false
-	dim as string newKey
-	dim as integer currentLevel
-	dim as integer stateStart = startIndex + 1
-	dim as parserState state = parserState.none
-	dim as boolean isStringOpen = false
-
-	if (currentItem->_dataType = jsonNull) then
-		if ( jsonString[startIndex] = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
-			currentItem->_datatype = jsonObject
-		elseif ( jsonString[startIndex] = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
-			currentItem->_dataType = jsonArray
-		end if
-	end if
+	dim currentItem as jsonItem ptr = @this
+	dim child as jsonItem ptr
+	dim i as integer
+	dim as string key
+	dim as integer valueStart
+	dim as parserState state
+	dim as boolean isStringOpen 
+	dim valueString as string
 	
-	if (currentItem->_datatype = jsonarray) then 
+	if ( jsonString[0] = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
+		currentItem->_datatype = jsonObject
+		state = parserState.none
+	elseif ( jsonString[0] = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
+		currentItem->_dataType = jsonArray
 		state = valueToken
 	end if
 	
-	if (startIndex +1 >= endIndex) then
+	if ( endIndex <= 1) then
 		return 
 	end if
+	endindex = endIndex -1
 	
-	for i as integer = startIndex +1 to endIndex -1
-		' Because strings can contain other json tokens, we handle strings seperately:
-		select case as const jsonString[i]
-		case jsonToken.Quote
-			if ( jsonString[i-1] <> jsonToken.BackSlash ) then
-				isStringOpen = not(isStringOpen)
-				
-				if ( isStringOpen = true ) then
-					if ( currentItem->_dataType <> jsonArray ) then
-						if ( state = parserState.none ) then 
-							state = keyToken
-							stateStart = i+1
-						end if
-					end if
-				else
-					if ( state = keyToken ) then
-						newKey = mid(jsonString, stateStart+1, i - stateStart)
-					end if
-				end if
+	for i = 1 to endIndex 
+		' Because strings can contain json tokens, we handle them seperately:
+		if ( jsonString[i] = jsonToken.Quote AndAlso jsonString[i-1] <> jsonToken.BackSlash ) then
+			isStringOpen = not(isStringOpen)
+			if ( currentItem->_datatype = jsonObject ) then
+				select case as const state
+				case none:
+					state = keyToken
+					valueStart = i+1
+				case keyToken
+					key = mid(jsonString, valueStart+1, i - valueStart)
+				end select
 			end if
-		case jsonToken.BackSlash
-			if ( isStringOpen = false ) then 
-				errorOccured = true
-			end if
-		end select
+		end if
 		
 		' When not in a string, we can handle the complicated suff:
 		if ( isStringOpen = false ) then
+			' Note: Not a single string-comparison in here. 
 			select case as const jsonString[i]
+				case jsonToken.BackSlash
+					state = jsonError
+
 				case jsonToken.Colon:
-					if ( currentItem->_dataType = jsonArray ) then
-						if ( currentLevel = 0 ) then errorOccured = true
-					else
-						if ( state = keyToken ) then
-							state = valueToken
-							stateStart = i+1
-						elseif (currentLevel = 0 ) then
-							errorOccured = true
-						end if
+					if (state = keyToken ) then 
+						state = valueToken
+						valueStart = i+1
 					end if
+					
 				case jsonToken.Comma:
-					if (currentLevel = 0 andAlso state = valueToken ) then
+					if ( state = valueToken ) then
 						state = valueTokenClosed
 					end if
-				case jsonToken.CurlyOpen, jsonToken.SquareOpen
-					if ( currentLevel = 0 andAlso state = valueToken ) then
-						stateStart = i
+					
+				case jsonToken.CurlyOpen:
+					if ( state = valueToken ) then
+						child = new jsonItem()
+						child->_datatype = jsonobject
+						if ( currentItem->_datatype = jsonObject ) then
+							currentItem->AppendChild( key, child )
+						else
+							currentItem->AppendChild( child )
+						end if
+						currentItem = child
+						state = none
+					else
+						state = jsonError
 					end if
-					currentLevel += 1
-				case jsonToken.CurlyClose, jsonToken.SquareClose
-					currentLevel -= 1
+					
+				case jsonToken.SquareOpen:
+					if ( state = valueToken ) then
+						child = new jsonItem()
+						child->_datatype = jsonArray
+						if ( currentItem->_datatype = jsonObject ) then
+							currentItem->AppendChild( key, child )
+						else
+							currentItem->AppendChild( child )
+						end if
+						currentItem = child
+						state = valueToken
+						valueStart = i+1
+					else
+						state = jsonError
+					end if
+					
+				case jsonToken.CurlyClose:
+					if ( currentItem->_parent <> 0 andAlso currentItem->_datatype = jsonObject) then
+						state = nestEnd
+					else
+						state = jsonError
+					end if
+				
+				case jsonToken.SquareClose:
+					if ( currentItem->_parent <> 0 andAlso currentItem->_datatype = jsonArray) then
+						state = nestEnd
+					else
+						state = jsonError
+					end if
+
 				case jsonToken.Space, jsonToken.Tab, jsonToken.NewLine, jsonToken.Quote, 13
 					' break.
+					
 				case else:
-					if (state <> valueToken) then
-						errorOccured = true
+					if ( state <> valueToken ) then
+						state = jsonError
 					end if
 			end select
 		end if	
 		
-		if ( i =  endIndex -1 ) then
-			if ( isStringOpen = -1 orElse currentLevel <> 0 orElse state <> valueToken ) then
-				errorOccured = true
+		if ( i = endIndex ) then
+			if ( currentItem->_parent <> 0 andAlso state <> nestEnd ) then
+				state = jsonError
 			end if
-			state = valueTokenClosed 
-			i+=1
+		
+			if (state = valueToken) then
+				state = valueTokenClosed
+			end if
 		end if
 		
-		if ( state = valueTokenClosed ) then
-			dim child as jsonItem ptr = new jsonItem
-			dim valueString as string = trim(mid(jsonString, stateStart+1, i - stateStart),any " "+chr(9,10))
-			dim length as integer = len(valuestring)
+		if ( state = valueTokenClosed orElse state = nestEnd ) then
+			dim length as integer
 			
-			if ( length > 0 ) then
-				if ( valueString[0] = jsonToken.CurlyOpen andAlso _
-					valueString[length-1] = jsonToken.CurlyClose ) then
-					
-					child->_datatype = jsonObject
-					jsonItem.parse(child, jsonString, stateStart, stateStart + length -1) 
-				elseif ( valueString[0] = jsonToken.SquareOpen andAlso _
-					valueString[length-1] = jsonToken.SquareClose ) then
-					
-					child->_datatype = jsonArray
-					jsonItem.parse(child, jsonString, stateStart, stateStart + length -1) 
-				else
-					if ( valueString[0] = jsonToken.Quote ) then 
-						if ( valueString[length-1] = jsonToken.Quote ) then
-							child->_dataType = jsonDataType.jsonString
-							child->_value = mid(valueString,2, length-2)
-							DeEscapeString(child->_value)
-						else
-							child->_dataType = malformed
+			' Believe it or not: It's faster to check this first.
+			if ( i-valueStart <> 0 ) then
+				' This trim() munches a good amount of the runtime, at least for the object_flat example.
+				' I could probably get around that, by manually counting up the whitespaces to have the exact "MID()" i need.
+				valueString = trim(mid(jsonString, valueStart+1, i - valueStart),any !" \r\n")
+				length = len(valuestring)
+			end if
+						
+			if ( length <> 0 ) then
+				child = new jsonItem()
+
+				select case as const valueString[0]
+				case jsonToken.Quote
+					if ( valueString[length-1] = jsonToken.Quote ) then
+						child->_dataType = jsonDataType.jsonString
+						child->_value = mid(valueString,2, length-2)
+						if ( DeEscapeString(child->_value) = false ) then
+							child->_datatype = malformed
+							state = jsonError
 						end if
 					else
-						select case lcase(valueString)
+						child->_dataType = malformed
+					end if
+				case 110,78, 102,70, 116,84 ' n,N f,F t,T
+					select case lcase(valueString)
 						case "null"
 							child->_value = valueString
 							child->_dataType = jsonNull
 						case "true", "false"
 							child->_value = valueString
 							child->_dataType = jsonBool
-						case else:
-							dim as byte lastCharacter = valueString[length-1]
-							if ( lastCharacter <= 57 orElse lastCharacter >= 48 ) then
-								child->_dataType = jsonNumber
-								child->_value = str(cdbl(valueString))
-								if ( child->_value = "0" andAlso valueString <> "0" ) then
-									child->_datatype = malformed
-								end if
-							else
-								child->_datatype = malformed
-							end if
-						end select
-					end if
-				end if
-				
-				if ( currentItem->_dataType = jsonObject ) then
-					if ( cbool(len(newKey) <> 0) AndAlso currentItem->ContainsKey(newKey) = false ) then
-						child->key = newKey
+						case else
+							child->_datatype = malformed
+					end select
+				case else:
+					dim as byte lastCharacter = valueString[length-1]
+					if ( lastCharacter <= 57 orElse lastCharacter >= 48 ) then
+						child->_dataType = jsonNumber
+						child->_value = str(cdbl(valueString))
+						if ( child->_value = "0" andAlso valueString <> "0" ) then
+							child->_datatype = malformed
+						end if
 					else
-						currentItem->_datatype = malformed
+						child->_datatype = malformed
 					end if
-					state = parserState.none
-				else
-					state = valueToken
-				end if
-				currentItem->AppendChild(child)
+				end select
 				
-				stateStart = i+1
+				if ( currentItem->_datatype = jsonObject ) then
+					currentItem->AppendChild(key, child)
+				else
+					currentItem->AppendChild(child)
+				end if
+			end if
+			
+			if ( state = nestEnd ) then
+				currentItem = currentItem->_parent
+			end if
+			
+			if ( currentItem->_datatype = jsonArray ) then
+				state = valueToken
+				valueStart = i+1
 			else
-				errorOccured = true
+				state = none
 			end if
 		end if
 		
-		if ( errorOccured ) then
+		if ( state = jsonError ) then
 			dim as integer lineNumber = 1
 			dim as integer position = 1
-			dim as integer lastBreak
+			dim as integer lastBreak = 0
 			for j as integer = 0 to i
 				if ( jsonString[j] = 10 ) then
 					lineNumber +=1
@@ -396,10 +452,11 @@ sub jsonItem.Parse(currentItem as jsonItem ptr, byref jsonString as string, star
 			if ( isStringOpen ) then
 				currentItem->_error = "Expected closing quote, found: "+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
 			else
-				currentItem->_error = "Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position
+				currentItem->_error = "Unexpected token '"+ chr(jsonString[i]) + "' in line "& lineNumber &" at position " & position & "."
 			end if
 			#ifdef fbJson_DEBUG
-				print mid(jsonString, lastBreak +1, i - lastBreak)
+				print mid(jsonString, lastBreak +1, i - lastBreak +2)
+				print space(position-2) + "^"
 				print "fbJSON Error: " & currentItem->_error
 			#endif
 			currentItem->_dataType = malformed
