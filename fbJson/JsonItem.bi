@@ -509,7 +509,6 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 				end if
 			end if
 			valueLength = 0
-			? child->key, child->value, valueLength, state
 			if state = nestEnd then
 				currentItem = currentItem->_parent
 			else
