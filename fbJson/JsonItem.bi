@@ -216,10 +216,6 @@ end property
 
 sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer) 
 	using fbJsonInternal
-	' Abort early:
-	if ( endIndex <= 1) then
-		return 
-	end if
 	
 	' Objects we will work with:
 	dim currentItem as jsonItem ptr = @this
@@ -248,6 +244,12 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	else
 		this._isMalformed = true
 		return
+	end if
+	
+		' Abort early:
+	if ( endIndex <= 1) then
+		delete child
+		return 
 	end if
 		
 	' Skipping the opening and closing brackets makes things a bit easier.
@@ -457,6 +459,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		dim as integer lineNumber = 1
 		dim as integer position = 1
 		dim as integer lastBreak = 0
+		dim as string lastLine
 		for j as integer = 0 to i
 			if ( jsonString[j] = 10 ) then
 				lineNumber +=1
@@ -472,7 +475,8 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			currentItem->_error = "Unexpected token '"+ chr(character) + "' in line "& lineNumber &" at position " & position & "."
 		end if
 		#ifdef fbJson_DEBUG
-			print mid(jsonString, lastBreak +1, i - lastBreak +1)
+			fastmid(lastLine,jsonString, lastBreak +1, i - lastBreak +1)
+			print lastLine
 			print space(position-3) + "^"
 			print "fbJSON Error: " & currentItem->_error, state, valueLength
 		#endif
