@@ -20,9 +20,7 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	' I also can't guarantee that it won't leak in all cases.
 	' It does not leak in this json-parser.
 		
-	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)
-	if ( destinationPtr->size ) then deallocate destinationPtr->stringData
-	
+	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)	
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
 	destinationPtr->length = length
 	destinationPtr->size = length * sizeof(byte)
@@ -62,6 +60,7 @@ enum parserState
 	valueToken
 	valueTokenClosed
 	nestEnd
+	nestEndHandled
 	resetState
 end enum
 
@@ -103,7 +102,7 @@ end function
 
 end namespace
 
-type jsonItem
+type jsonItem 
 	protected:
 		_isMalformed as boolean = false
 		_dataType as jsonDataType = jsonNull
@@ -367,7 +366,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 				case jsonToken.Comma:
 					if ( state = valueToken ) then
 						state = valueTokenClosed
-					elseif ( state = nestEnd ) then
+					elseif ( state = nestEndHandled ) then
 						state = resetState
 					end if
 					
@@ -511,6 +510,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 			valueLength = 0
 			if state = nestEnd then
 				currentItem = currentItem->_parent
+				state = nestEndHandled 
 			else
 				state = resetState
 			end if
