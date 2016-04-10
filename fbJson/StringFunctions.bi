@@ -12,35 +12,35 @@ type fbStringStruct
     dim as integer size
 end type
 
+sub FastLeft(byref destination as string, length as uinteger)
+	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)
+	destinationPtr->length = IIF(length < destinationPtr->length, length, destinationPtr->length)
+	destinationPtr->size = destinationPtr->length
+	destinationPtr->stringData = reallocate(destinationPtr->stringData,destinationPtr->size)
+end sub
+
 
 sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
-	' I DO NOT recommend using this as a drop-in replacement for MID(). 
-	' If FB changes it's internal string format, this breaks.
-	' I also can't guarantee that it won't leak in all cases.
-	' It does not leak in this json-parser.
-		
-	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)	
+	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)
+	if ( destinationPtr->size ) then deallocate destinationPtr->stringData
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
 	destinationPtr->length = length
-	destinationPtr->size = length * sizeof(byte)
-	' Allocating the memory manually is what safes the time here. Using "Space(x)" would work
-	' And it would set length and size correctly - but it's slower.
+	destinationPtr->size = length
 	destinationPtr->stringData = allocate(destinationPtr->size)
-	
-	' Copy the raw memory-chunk we want from the source to our destination.
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
 end sub
 
 function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
+
 	dim as uinteger trimSize = 0	
 	for i as uinteger = 0 to length
 		' 92 is backslash
 		if ( escapedString[i] = 92 ) then
-			if ( i < length ) then			
+			if ( i < length ) then
 				select case as const escapedString[i-trimsize+1]
 				case 34, 92, 47: ' " \ /
-					'escapedString[i-trimsize+1] = escapedString[i-trimsize+1]
+					' Nothing to do here.
 				case 98 ' b
 					escapedString[i-trimsize+1] = 8 ' backspace
 				case 102 ' f
@@ -63,7 +63,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 		end if
 	next
 	if ( trimSize > 0 ) then
-		escapedString = left(escapedString, length - trimSize+1)
+		fastleft(escapedString, length - trimSize+1)
 	end if
 	return true
 end function
