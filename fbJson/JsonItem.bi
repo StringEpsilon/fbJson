@@ -219,7 +219,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	
 	' Objects we will work with:
 	dim currentItem as jsonItem ptr = @this
-	dim as jsonItem ptr child = new jsonItem
+	dim as jsonItem ptr child '= new jsonItem
 	
 	' key states and variables for the main parsing:
 	dim i as integer
@@ -264,7 +264,8 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				case none:
 					state = keyToken
 					valueStart = i+1
-				case keyToken					
+				case keyToken
+					if child = 0  then child = new jsonItem()
 					fastmid (child->key, jsonString, valuestart,  i - valueStart)
 					state = keyTokenClosed
 				case else
@@ -295,6 +296,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					
 				case jsonToken.CurlyOpen:
 					if ( state = valueToken ) then
+						if (child = 0) then child = new jsonItem()
 						child->_datatype = jsonobject
 						currentItem->AppendChild( child )
 						currentItem = child
@@ -305,6 +307,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					
 				case jsonToken.SquareOpen:
 					if ( state = valueToken ) then
+						if (child = 0) then child = new jsonItem()
 						child->_datatype = jsonArray
 						currentItem->AppendChild( child )
 						currentItem = child
@@ -376,14 +379,17 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		if ( state = valueTokenClosed orElse state = nestEnd ) then
 			' because we already know how long the string we are going to parse is, we can skip if it's 0.
 			if ( valueLength <> 0 ) then
+				if (child = 0) then child = new jsonItem()
 				' The time saved with this is miniscule, but reliably measurable.		
 				select case as const jsonstring[valuestart]
 				case jsonToken.Quote
 					if ( jsonstring[valueStart+valueLength-1] ) then
 						FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 						child->_dataType = jsonDataType.jsonString
-						if ( DeEscapeString(child->_value) = false ) then
-							goto errorHandling
+						if ( instr(child->_value, "\") <> 0 ) then 
+							if ( DeEscapeString(child->_value) = false ) then
+								goto errorHandling
+							end if
 						end if
 					else
 						goto errorHandling
@@ -435,6 +441,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		
 		if ( state = resetState ) then
 			valueLength = 0
+			child = 0
 			if ( currentItem->_datatype = jsonArray ) then
 				state = valueToken
 				valueStart = i+1
@@ -443,16 +450,8 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				trimLeftActive = false
 				state = none
 			end if
-			if ( child->_parent = 0) then
-				delete child
-			end if
-			child = new jsonItem()
 		end if
 	next
-	
-	if ( child->_parent = 0) then
-		delete child
-	end if
 	return
 	
 	errorHandling:
@@ -480,7 +479,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			print space(position-3) + "^"
 			print "fbJSON Error: " & currentItem->_error, state, valueLength
 		#endif
-		if ( child->_parent = 0) then
+		if ( child <> 0 andAlso child->_parent = 0) then
 			delete child
 		end if
 		currentItem->_isMalformed = true
