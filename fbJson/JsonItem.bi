@@ -1,36 +1,10 @@
-#include "crt.bi"
+
 #include once "JsonDatatype.bi"
+#include once "StringFunctions.bi"
 
 '#define fbJSON_debug
 
 namespace fbJsonInternal
-
-' Allows us to interact directly with the FB-Internal string-structure.
-' Don't use it, unless you know what you're doing.
-type fbStringStruct
-    dim as byte ptr stringData
-    dim as integer length
-    dim as integer size
-end type
-
-
-sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
-	' I DO NOT recommend using this as a drop-in replacement for MID(). 
-	' If FB changes it's internal string format, this breaks.
-	' I also can't guarantee that it won't leak in all cases.
-	' It does not leak in this json-parser.
-		
-	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)	
-	' Setting the length and size of the string, so the runtime knows how to handle it properly.
-	destinationPtr->length = length
-	destinationPtr->size = length * sizeof(byte)
-	' Allocating the memory manually is what safes the time here. Using "Space(x)" would work
-	' And it would set length and size correctly - but it's slower.
-	destinationPtr->stringData = allocate(destinationPtr->size)
-	
-	' Copy the raw memory-chunk we want from the source to our destination.
-	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
-end sub
 
 enum jsonToken
 	tab = 9
@@ -45,12 +19,6 @@ enum jsonToken
 	squareClose = 93
 	curlyOpen = 123
 	curlyClose = 125
-	lcaseU = 117
-	lcaseB = 98
-	lcaseF = 102
-	lcaseN = 110
-	lcaseR = 114
-	lcaseT = 116
 end enum
 
 enum parserState
@@ -64,42 +32,6 @@ enum parserState
 	resetState
 end enum
 
-function DeEscapeString(byref escapedString as string) as boolean
-	dim as uinteger length = len(escapedString)-1
-	dim as uinteger trimSize = 0	
-	for i as uinteger = 0 to length
-		if ( escapedString[i] = BackSlash ) then
-			if ( i < length ) then
-				select case as const escapedString[i-trimsize+1]
-				case quote, backSlash, forwardSlash:
-					'escapedString[i-trimsize+1] = escapedString[i-trimsize+1]
-				case lcaseB
-					escapedString[i-trimsize+1] = 8 ' backspace
-				case lcaseF
-					escapedString[i-trimsize+1] = 12
-				case lcaseN
-					escapedString[i-trimsize+1] = 10
-				case lcaseR
-					escapedString[i-trimsize+1] = 13
-				case lcaseT
-					escapedString[i-trimsize+1] = 9 ' tab
-				case lcaseU
-					' TO DO: Escape unicode sequences.
-				case else
-					return false
-				end select
-				trimSize+=1
-			end if
-		elseif ( trimSize > 0 ) then
-			escapedString[i-trimsize] = escapedString[i]
-		end if
-	next
-	if ( trimSize > 0 ) then
-		escapedString = left(escapedString, length - trimSize+1)
-	end if
-	return true
-end function
-
 end namespace
 
 type jsonItem 
@@ -107,12 +39,11 @@ type jsonItem
 		_isMalformed as boolean = false
 		_dataType as jsonDataType = jsonNull
 		_value as string
-		_children(any) as jsonItem ptr
 		_error as string
+		_children(any) as jsonItem ptr
 		_parent as jsonItem ptr
 		
-		declare sub Parse(byref jsonString as string, endIndex as integer) 
-		declare sub ParseNew(byref jsonString as string, endIndex as integer) 
+		declare sub Parse(jsonString as byte ptr, endIndex as integer) 
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 	public:
 		
@@ -156,7 +87,7 @@ end constructor
 
 constructor jsonItem(byref jsonString as string)
 	jsonString = trim(jsonString, any " "+chr(9,10) )
-	this.Parse(jsonString, len(jsonstring)-1)
+	this.Parse(strptr(jsonString), len(jsonstring)-1)
 end constructor
 
 destructor jsonItem()
@@ -283,11 +214,16 @@ property jsonItem.Value() as string
 	return this._value
 end property
 
-sub jsonItem.Parse(byref jsonString as string, endIndex as integer) 
+sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer) 
 	using fbJsonInternal
+	' Abort early:
+	if ( endIndex <= 1) then
+		return 
+	end if
+	
 	' Objects we will work with:
 	dim currentItem as jsonItem ptr = @this
-	dim as jsonItem ptr child  = new jsonItem
+	dim as jsonItem ptr child = new jsonItem
 	
 	' key states and variables for the main parsing:
 	dim i as integer
@@ -299,13 +235,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 	dim as integer valueLength = 0
 	dim as boolean trimLeftActive = false
 	
-	' For slighty faster MID
-	dim as fbStringStruct ptr destinationPtr 
-	
-
-	' Shenanigans:
-	dim as byte ptr rawString = strPtr(jsonstring)
-	dim as byte character = peek(ubyte, rawString + i)
+	dim as byte character = peek(ubyte, jsonstring)
 	
 	if ( character = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
 		currentItem->_datatype = jsonObject
@@ -319,16 +249,10 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 		this._isMalformed = true
 		return
 	end if
-	
-	' Abort early:
-	if ( endIndex <= 1) then
-		delete child
-		return 
-	end if
-	
+		
 	' Skipping the opening and closing brackets makes things a bit easier.
 	for i = 1 to endIndex-1
-		character = peek(ubyte, rawString + i)
+		character = peek(ubyte, jsonString + i)
 		
 		' Because strings can contain json tokens, we handle them seperately:
 		if ( character = jsonToken.Quote AndAlso jsonString[i-1] <> jsonToken.BackSlash ) then
@@ -339,10 +263,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 					state = keyToken
 					valueStart = i+1
 				case keyToken					
-					' FastMid() is only very(!) slightly faster in this case,
-					' because "key" needs to be deallocated every time.
-					' using child->key directly would be better.
-					fastmid (child->key, rawstring, valuestart,  i - valueStart)
+					fastmid (child->key, jsonString, valuestart,  i - valueStart)
 					state = keyTokenClosed
 				case else
 				end select
@@ -428,9 +349,6 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 						goto errorHandling
 					end if
 			end select
-			
-			'~ ? "current char: "& chr(character)
-			'~ ? "current state: "& state
 		else
 			' If we are in a string IN a value, we add up the length.
 			if ( state = valueToken ) then
@@ -456,12 +374,11 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 		if ( state = valueTokenClosed orElse state = nestEnd ) then
 			' because we already know how long the string we are going to parse is, we can skip if it's 0.
 			if ( valueLength <> 0 ) then
-				'valueChild = new jsonItem()
 				' The time saved with this is miniscule, but reliably measurable.		
 				select case as const jsonstring[valuestart]
 				case jsonToken.Quote
 					if ( jsonstring[valueStart+valueLength-1] ) then
-						FastMid(child->_value, rawString, valuestart+1, valueLength-2)
+						FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 						child->_dataType = jsonDataType.jsonString
 						if ( DeEscapeString(child->_value) = false ) then
 							goto errorHandling
@@ -471,7 +388,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 					end if
 				case 110,78, 102,70, 116,84 ' n,N f,F t,T
 					' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
-					FastMid(child->_value, rawString, valuestart, valueLength)
+					FastMid(child->_value, jsonString, valuestart, valueLength)
 					select case lcase(child->_value)
 						case "null"
 							child->_dataType = jsonNull
@@ -482,14 +399,13 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 							goto errorHandling
 					end select
 				case 48,49,50,51,52,53,54,55,56,57:
-					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1] ' valueString[valueLength-1]
+					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
 					if ( lastCharacter <= 57 andAlso lastCharacter >= 48 ) then
-						FastMid(child->_value, rawString, valuestart, valueLength)
+						FastMid(child->_value, jsonString, valuestart, valueLength)
 						child->_dataType = jsonNumber
 						child->_value = str(cdbl(child->_value))
 						if ( child->_value = "0" andAlso child->_value <> "0" ) then
 							goto errorHandling
-							
 						end if
 					else
 						goto errorHandling
@@ -501,9 +417,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 				
 				currentItem->AppendChild(child)
 			else
-				
 				if state <> nestEnd then
-					? child->key, child->value, valueLength, state
 					goto errorHandling
 				end if
 			end if
@@ -560,7 +474,7 @@ sub jsonItem.Parse(byref jsonString as string, endIndex as integer)
 		#ifdef fbJson_DEBUG
 			print mid(jsonString, lastBreak +1, i - lastBreak +1)
 			print space(position-3) + "^"
-			print "fbJSON Error: " & currentItem->_error, state, valueLength ', child->_value
+			print "fbJSON Error: " & currentItem->_error, state, valueLength
 		#endif
 		if ( child->_parent = 0) then
 			delete child
@@ -571,6 +485,8 @@ end sub
 
 function jsonItem.ToString(level as integer = 0) as string
 	dim as string result
+	
+	' TODO: Clean up this mess.
 	
 	if this.datatype = jsonObject  then
 		result = "{" + chr(10) + string((level+1), chr(9)) 
@@ -636,7 +552,7 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 end function
 
 function JsonItem.AddItem(key as string, item as jsonItem) as boolean
-	if ( len(key) = 0 orElse this[key].datatype <> jsonNull ) then
+	if ( len(key) = 0 orElse this.containsKey(key) <> jsonNull ) then
 		return false
 	end if
 	
@@ -675,7 +591,7 @@ end function
 function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
 	if ( newChild = 0 ) then return false	
 	if ( this._datatype = jsonObject ) then 
-		if ( len(newChild->key) = 0 OrElse this.ContainsKey(newChild->key) ) then
+		if ( cbool(len(newChild->key) = 0) OrElse this.ContainsKey(newChild->key) ) then
 			return false
 		end if
 	end if
@@ -722,8 +638,7 @@ end function
 
 function JsonItem.ContainsKey(key as string) as boolean
 	if ( this._datatype <> jsonObject ) then return false
-	'if ( ubound(this._children) = -1 ) then return false
-	
+		
 	for i as integer = 0 to ubound(this._children)
 		if ( this._children(i)->key = key ) then
 			return true
