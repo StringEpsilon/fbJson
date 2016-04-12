@@ -42,17 +42,21 @@ type jsonItem
 		_error as string
 		_children(any) as jsonItem ptr
 		_parent as jsonItem ptr
+		_key as string
 		
 		declare sub Parse(jsonString as byte ptr, endIndex as integer) 
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 	public:
 		
-		key as string
+		'key as string
 		
 		declare constructor()
 		declare constructor(byref jsonString as string)
 		
 		declare destructor()
+		
+		'declare property Key (byref newValue as string)
+		declare property key () as string
 		
 		declare property Value(byref newValue as string)
 		declare property Value() as string
@@ -99,7 +103,7 @@ end destructor
 
 operator jsonItem.LET(copy as jsonItem)
 	this.destructor()
-	this.key = copy.key
+	this._key = copy._key
 	this._value = copy._value
 	this._dataType = copy._dataType
 	this._error = copy._error
@@ -114,6 +118,18 @@ operator jsonItem.LET(copy as jsonItem)
 	end if
 end operator
 
+property jsonItem.Key() as string
+	return this._key
+end property
+
+property jsonItem.Key(newkey as string)
+	if ( this._key = newKey ) then return
+
+	if ( currentItem.Parent.ContainsKey(newKey) then return
+	
+	this._key = newKey
+end property
+
 property jsonItem.Parent() byref as jsonItem
 	if ( this._parent <> 0 ) then
 		return *this._parent
@@ -122,10 +138,10 @@ property jsonItem.Parent() byref as jsonItem
 	return *new jsonItem()
 end property
 
-operator jsonItem.[](key as string) byref as jsonItem	
+operator jsonItem.[](newKey as string) byref as jsonItem	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to ubound(this._children)
-			if ( this._children(i)->key = key ) then
+			if ( this._children(i)->_key = newkey ) then
 				return *this._children(i)
 			end if
 		next
@@ -167,7 +183,8 @@ property jsonItem.Value( byref newValue as string)
 	' TODO: Optimize this, according to the parser optimizations
 	
 	' First, handle strings in quotes:
-	if ( newValue[0] = jsonToken.Quote ) then 
+	select case as const newValue[0]
+	case jsonToken.Quote
 		if ( newValue[len(newValue)-1] = jsonToken.Quote ) then
 			this._dataType = jsonString
 			this._value = mid(newValue,2, len(newValue)-2)
@@ -177,8 +194,26 @@ property jsonItem.Value( byref newValue as string)
 		else
 			this._isMalformed = true
 		end if
-	else
-		
+	case 48,49,50,51,52,53,54,55,56,57 ' 0 - 9
+		dim as byte lastCharacter = newValue[len(newValue)-1]
+		if ( lastCharacter > 57 orElse lastCharacter < 48 ) then
+			' IF the current item is already a string, we can be a little more forgiving
+			' This allows for easier manipulation of items in code 
+			' (because you don't have to include the quotes every time)
+			' This solution is of course ugly as f..., but whatever.
+			if ( this._datatype = jsonString ) then
+				this._value = newValue
+			else
+				this._isMalformed = true
+			end if
+		else
+			this._dataType = jsonNumber
+			this._value = str(cdbl(newValue))
+			if ( this._value = "0" andAlso newValue <> "0" ) then
+				this._isMalformed = true
+			end if
+		end if
+	case 110,78, 102,70, 116,84 ' n, f, t
 		select case lcase(newValue)
 		case "null"
 			this._value = newValue
@@ -187,27 +222,11 @@ property jsonItem.Value( byref newValue as string)
 			this._value = newValue
 			this._dataType = jsonBool
 		case else:
-			
-			dim as byte lastCharacter = newValue[len(newValue)-1]
-			if ( lastCharacter > 57 orElse lastCharacter < 48 ) then
-				' IF the current item is already a string, we can be a little more forgiving
-				' This allows for easier manipulation of items in code 
-				' (because you don't have to include the quotes every time)
-				' This solution is of course ugly as f..., but whatever.
-				if ( this._datatype = jsonString ) then
-					this._value = newValue
-				else
-					this._isMalformed = true
-				end if
-			else
-				this._dataType = jsonNumber
-				this._value = str(cdbl(newValue))
-				if ( this._value = "0" andAlso newValue <> "0" ) then
-					this._isMalformed = true
-				end if
-			end if
+			' strict vs. nonstrict mode?
+			this._datatype = jsonString
+			this._value = newValue
 		end select
-	end if
+	end select
 end property
 
 property jsonItem.Value() as string
@@ -266,7 +285,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					valueStart = i+1
 				case keyToken
 					if child = 0  then child = new jsonItem()
-					fastmid (child->key, jsonString, valuestart,  i - valueStart)
+					fastmid (child->_key, jsonString, valuestart,  i - valueStart)
 					state = keyTokenClosed
 				case else
 				end select
@@ -499,7 +518,7 @@ function jsonItem.ToString(level as integer = 0) as string
 		
 	for i as integer = 0 to this.count - 1
 		if ( this.datatype = jsonObject ) then
-			result += """" & this[i].key & """ : " 
+			result += """" & this[i]._key & """ : " 
 		end if
 		
 		if ( this[i].Count >= 1 ) then
@@ -536,7 +555,7 @@ function jsonItem.ToString(level as integer = 0) as string
 	return result
 end function
 
-function JsonItem.AddItem(key as string, newValue as string) as boolean
+function JsonItem.AddItem(newKey as string, newValue as string) as boolean
 	if ( len(key) = 0 orElse this[key].datatype <> jsonNull ) then
 		return false
 	end if
@@ -548,13 +567,13 @@ function JsonItem.AddItem(key as string, newValue as string) as boolean
 	if ( this._datatype = jsonObject ) then
 		dim child as JsonItem ptr = new jsonItem
 		child->Value = newValue
-		child->key = key
+		child->_key = newKey
 		return this.AppendChild(child)
 	end if
 	return false
 end function
 
-function JsonItem.AddItem(key as string, item as jsonItem) as boolean
+function JsonItem.AddItem(newKey as string, item as jsonItem) as boolean
 	if ( len(key) = 0 orElse this.containsKey(key) <> jsonNull ) then
 		return false
 	end if
@@ -566,7 +585,7 @@ function JsonItem.AddItem(key as string, item as jsonItem) as boolean
 	if ( this._datatype = jsonObject ) then
 		dim child as JsonItem ptr = callocate(sizeof(jsonItem))
 		*child = item
-		child->key = key
+		child->_key = newKey
 		return this.AppendChild(child)
 	end if
 	return false
@@ -594,7 +613,7 @@ end function
 function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
 	if ( newChild = 0 ) then return false	
 	if ( this._datatype = jsonObject ) then 
-		if ( cbool(len(newChild->key) = 0) OrElse this.ContainsKey(newChild->key) ) then
+		if ( cbool(len(newChild->_key) = 0) OrElse this.ContainsKey(newChild->_key) ) then
 			return false
 		end if
 	end if
@@ -609,12 +628,12 @@ function jsonItem.AppendChild(newChild as jsonItem ptr) as boolean
 	return true
 end function
 
-function JsonItem.RemoveItem(key as string) as boolean
+function JsonItem.RemoveItem(newKey as string) as boolean
 	dim as integer index = -1
 	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to ubound(this._children)
-			if ( this._children(i)->key = key ) then
+			if ( this._children(i)->_key = newkey ) then
 				index = i
 				exit for
 			end if
@@ -639,11 +658,11 @@ function JsonItem.RemoveItem(index as integer) as boolean
 	return false
 end function
 
-function JsonItem.ContainsKey(key as string) as boolean
+function JsonItem.ContainsKey(newKey as string) as boolean
 	if ( this._datatype <> jsonObject ) then return false
 		
 	for i as integer = 0 to ubound(this._children)
-		if ( this._children(i)->key = key ) then
+		if ( this._children(i)->_key = newKey ) then
 			return true
 		end if
 	next
