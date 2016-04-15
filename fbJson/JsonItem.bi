@@ -512,7 +512,7 @@ function jsonItem.ToString(level as integer = 0) as string
 	' TODO: Clean up this mess.
 	
 	if this.datatype = jsonObject  then
-		result = "{" + chr(10) + string((level+1), chr(9)) 
+		result = "{"
 	elseif ( this.datatype = jsonArray ) then
 		result = "["
 	end if
@@ -522,7 +522,7 @@ function jsonItem.ToString(level as integer = 0) as string
 			result += """" & this[i]._key & """ : " 
 		end if
 		
-		if ( this[i].Count >= 1 ) then
+		if ( this[i].Count >= 0 ) then
 			result += this[i].toString(level+1)
 		else			
 			if ( this[i].datatype = jsonString) then
@@ -541,10 +541,6 @@ function jsonItem.ToString(level as integer = 0) as string
 			level -= 1
 		end if
 		
-		if (this.datatype = jsonObject) then
-			result += chr(10)
-			result += string((level+1),chr(9)) 
-		end if
 	next
 	
 	if this.datatype = jsonObject  then
