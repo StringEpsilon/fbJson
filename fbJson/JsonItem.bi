@@ -57,6 +57,7 @@ type jsonItem
 		
 		'declare property Key (byref newValue as string)
 		declare property key () as string
+		declare property key (value as string)
 		
 		declare property Value(byref newValue as string)
 		declare property Value() as string
@@ -125,7 +126,7 @@ end property
 property jsonItem.Key(newkey as string)
 	if ( this._key = newKey ) then return
 
-	if ( currentItem.Parent.ContainsKey(newKey) then return
+	if ( this.Parent.ContainsKey(newKey) ) then return
 	
 	this._key = newKey
 end property
