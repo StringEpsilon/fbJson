@@ -422,12 +422,10 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 							child->_value = ""
 							goto errorHandling
 					end select
-				case jsonToken.minus, jsonToken.plus, 48,49,50,51,52,53,54,55,56,57:
+				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
 					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
 					if ( lastCharacter <= 57 andAlso lastCharacter >= 48 ) then
-						
 						FastMid(child->_value, jsonString, valuestart, valueLength)
-						? child->_value
 						child->_dataType = jsonNumber
 						child->_value = str(cdbl(child->_value))
 						if ( child->_value = "0" andAlso child->_value <> "0" ) then
@@ -477,6 +475,9 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		dim as integer position = 1
 		dim as integer lastBreak = 0
 		dim as string lastLine
+		if (state = valueTokenClosed) then
+			i = valueStart
+		end if
 		for j as integer = 0 to i
 			if ( jsonString[j] = 10 ) then
 				lineNumber +=1
