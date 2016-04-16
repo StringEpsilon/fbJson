@@ -16,6 +16,8 @@ enum jsonToken
 	squareClose = 93
 	curlyOpen = 123
 	curlyClose = 125
+	minus = 45
+	plus = 43
 end enum
 
 enum parserState
@@ -420,10 +422,12 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 							child->_value = ""
 							goto errorHandling
 					end select
-				case 48,49,50,51,52,53,54,55,56,57:
+				case jsonToken.minus, jsonToken.plus, 48,49,50,51,52,53,54,55,56,57:
 					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
 					if ( lastCharacter <= 57 andAlso lastCharacter >= 48 ) then
+						
 						FastMid(child->_value, jsonString, valuestart, valueLength)
+						? child->_value
 						child->_dataType = jsonNumber
 						child->_value = str(cdbl(child->_value))
 						if ( child->_value = "0" andAlso child->_value <> "0" ) then
