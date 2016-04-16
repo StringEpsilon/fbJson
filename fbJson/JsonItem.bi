@@ -238,6 +238,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	
 	' key states and variables for the main parsing:
 	dim i as integer
+	dim as uinteger parseStart = 1, parseEnd = endIndex -1
 	dim as integer valueStart
 	dim as parserState state
 	dim as boolean isStringOpen
@@ -257,22 +258,26 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		trimLeftActive = true
 		state = valueToken
 	else
-		this._isMalformed = true
-		return
+		'child = currentItem
+		parseStart = 0
+		parseEnd = endIndex
+		state = valueToken
+		'this._isMalformed = true
+		'return
 	end if
 	
-		' Abort early:
+	' Abort early:
 	if ( endIndex <= 1) then
 		delete child
 		return 
 	end if
 		
 	' Skipping the opening and closing brackets makes things a bit easier.
-	for i = 1 to endIndex-1
+	for i = parseStart to parseEnd
 		character = peek(ubyte, jsonString + i)
 		
 		' Because strings can contain json tokens, we handle them seperately:
-		if ( character = jsonToken.Quote AndAlso jsonString[i-1] <> jsonToken.BackSlash ) then
+		if ( character = jsonToken.Quote AndAlso (I = 0 orElse jsonString[i-1] <> jsonToken.BackSlash) ) then
 			isStringOpen = not(isStringOpen)
 			if ( currentItem->_datatype = jsonObject ) then
 				select case as const state
@@ -376,7 +381,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			end if
 		end if	
 		
-		if ( i = endIndex -1) then
+		if ( i = parseEnd) then
 			if ( isStringOpen ) then goto errorHandling
 			if ( state <> nestEnd ) then
 				if ( currentItem->_parent <> 0 andAlso state <> valueToken ) then
@@ -439,7 +444,14 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					 goto errorHandling
 				end select
 				
-				currentItem->AppendChild(child)
+				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
+					this._value = child->_value
+					this._datatype = child->_datatype
+					delete child
+				else
+					currentItem->AppendChild(child)
+				end if
+				
 			else
 				if state <> nestEnd then
 					goto errorHandling

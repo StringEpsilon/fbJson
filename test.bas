@@ -171,12 +171,10 @@ assertEqual(malformed, item.Datatype)
 print "[OK]"
 
 
-print "#1 - Testing positive signed number : {""key"":+4.44}"
+print "#1 - Testing positive signed number : {""key"": +4.44}"
 
 item = jsonItem("{""key"":+4.44}")
-assertEqual(jsonObject, item.Datatype)
-assertEqual(jsonNumber, item["key"].Datatype)
-assertEqual("4.44", item["key"].Value)
+assertEqual(malformed, item.Datatype)
 
 print "[OK]"
 
@@ -186,5 +184,57 @@ item = jsonItem("{""key"":-4.44}")
 assertEqual(jsonObject, item.Datatype)
 assertEqual(jsonNumber, item["key"].Datatype)
 assertEqual("-4.44", item["key"].Value)
+
+print "[OK]"
+
+print "#5 - Testing flat value - string : ""value"""
+
+item = jsonItem("""value""")
+assertEqual(jsonString, item.Datatype)
+assertEqual("value", item.Value)
+
+print "[OK]"
+
+print "#5 - Testing flat value - boolean"
+
+item = jsonItem("true")
+assertEqual(jsonBool, item.Datatype)
+assertEqual("true", item.Value)
+
+item = jsonItem("false")
+assertEqual(jsonBool, item.Datatype)
+assertEqual("false", item.Value)
+
+print "[OK]"
+
+print "#5 - Testing flat value - null"
+
+item = jsonItem("null")
+assertEqual(jsonNull, item.Datatype)
+assertEqual("null", item.Value)
+
+print "[OK]"
+
+
+print "#5 - Testing flat value - numbers"
+
+item = jsonItem("1000000")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("1000000", item.Value)
+
+item = jsonItem("10.00000")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("10", item.Value)
+
+item = jsonItem("12.3456789")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("12.3456789", item.Value)
+
+item = jsonItem("-12.3456789")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("-12.3456789", item.Value)
+
+item = jsonItem("+12.3456789")
+assertEqual(malformed, item.Datatype)
 
 print "[OK]"
