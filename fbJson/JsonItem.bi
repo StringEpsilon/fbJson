@@ -1,8 +1,5 @@
-
 #include once "JsonDatatype.bi"
 #include once "StringFunctions.bi"
-
-'#define fbJSON_debug
 
 namespace fbJsonInternal
 
@@ -47,17 +44,13 @@ type jsonItem
 		declare sub Parse(jsonString as byte ptr, endIndex as integer) 
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 	public:
-		
-		'key as string
-		
 		declare constructor()
 		declare constructor(byref jsonString as string)
 		
 		declare destructor()
 		
-		'declare property Key (byref newValue as string)
-		declare property key () as string
-		declare property key (value as string)
+		declare property Key () as string
+		declare property Key (value as string)
 		
 		declare property Value(byref newValue as string)
 		declare property Value() as string
@@ -382,6 +375,7 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		end if	
 		
 		if ( i = endIndex -1) then
+			if ( isStringOpen ) then goto errorHandling
 			if ( state <> nestEnd ) then
 				if ( currentItem->_parent <> 0 andAlso state <> valueToken ) then
 					goto errorHandling

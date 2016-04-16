@@ -14,6 +14,7 @@ sub AssertEqual(expected as string, result as string)
 	end if
 end sub
 
+#define fbJson_debug
 #include once "fbJson.bi"
 
 dim as jsonItem item 
@@ -156,3 +157,34 @@ item = jsonItem("{""foo"": }")
 AssertEqual(malformed, item.DataType)
 print "[OK]"
 print
+
+print "#2 - test malformed string: {""key"":""}"
+
+item = jsonItem("{""key"":""}")
+assertEqual(malformed, item.Datatype)
+print "[OK]"
+
+print "#2 - test malformed string 2: {""key"":""value\n}"
+
+item = jsonItem("{""key"":""value\n}")
+assertEqual(malformed, item.Datatype)
+print "[OK]"
+
+
+print "#1 - Testing positive signed number : {""key"":+4.44}"
+
+item = jsonItem("{""key"":+4.44}")
+assertEqual(jsonObject, item.Datatype)
+assertEqual(jsonNumber, item["key"].Datatype)
+assertEqual("4.44", item["key"].Value)
+
+print "[OK]"
+
+print "#1 - Testing negative signed number : {""key"":-4.44}"
+
+item = jsonItem("{""key"":-4.44}")
+assertEqual(jsonObject, item.Datatype)
+assertEqual(jsonNumber, item["key"].Datatype)
+assertEqual("-4.44", item["key"].Value)
+
+print "[OK]"
