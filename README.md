@@ -4,7 +4,7 @@ A small JSON library written in FreeBASIC
 
 ## Stability
 
-Current stable is 0.11 All examples compile and work as intended with fbc version 1.05, 64bit. 
+Current stable is 0.13. Tested with fbc 1.05
 
 I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits. The API however should not change dramatically.
 
@@ -12,10 +12,9 @@ Please report all issues.
 
 ## The code ##
 
-The main parser ( `jsonTime.Parse()` ) is written do to as little allocations, string comparisons and concatinations as possible. There are only two points in the code,
-where I create a partial copy of the parsed string, because it's slow to do so. The main bottleneck, according to my tests is indeed the single TRIM()-call I have in the code.
+The main parser ( `jsonTime.Parse()` ) is written do to as little allocations, string comparisons and concatinations as possible.
 
-This code is deliberatly ugly for the sake of performance. I even considered (and crudely benchmarked) the use of GOTO to make errorhandling faster ;-)
+This code is deliberatly ugly for the sake of performance. I even had to use GOTO to make the errorhandling somewhat acceptable.
 
 ## API
 
@@ -75,11 +74,3 @@ Loads the JSON-file from the given path. Returns true if successful.
 
 `jsonDocument.WriteFile(string [, boolean = true]) as boolean`
 Writes the content of the item to a give path. Returns true if successful. Second parameter turns overwriting files on or off (default is on).
-
-## TODO
-
-1) Add more functionality for the lazy.
-
-2) Fix style and naming.
-
-3) Add some tests.
