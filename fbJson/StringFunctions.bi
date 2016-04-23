@@ -6,14 +6,14 @@ namespace fbJsonInternal
 
 ' Allows us to interact directly with the FB-Internal string-structure.
 ' Don't use it, unless you know what you're doing.
-type fbStringStruct
+type fbString
     dim as byte ptr stringData
     dim as integer length
     dim as integer size
 end type
 
 sub FastLeft(byref destination as string, length as uinteger)
-	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)
+	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
 	destinationPtr->length = IIF(length < destinationPtr->length, length, destinationPtr->length)
 	destinationPtr->size = destinationPtr->length
 	destinationPtr->stringData = reallocate(destinationPtr->stringData,destinationPtr->size)
@@ -21,7 +21,7 @@ end sub
 
 
 sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
-	dim as fbStringStruct ptr destinationPtr = cast(fbStringStruct ptr, @destination)
+	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
 	if ( destinationPtr->size ) then deallocate destinationPtr->stringData
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
 	destinationPtr->length = length

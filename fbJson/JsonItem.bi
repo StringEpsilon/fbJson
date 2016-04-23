@@ -44,9 +44,11 @@ type jsonItem
 		_key as string
 		_count as integer = -1
 		
-		declare sub Parse(jsonString as byte ptr, endIndex as integer) 
+		declare sub Parse(jsonString as byte ptr, endIndex as integer)
+		
 		declare function AppendChild(newChild as jsonItem ptr) as boolean
 	public:
+	declare static function ParseJson(inputString as string) byref as JsonItem
 		declare constructor()
 		declare constructor(byref jsonString as string)
 		
@@ -67,6 +69,8 @@ type jsonItem
 		declare property Parent() byref as jsonItem
 		
 		declare operator LET(A as jsonItem)
+		
+		declare sub Parse(jsonString as string)
 		
 		declare function ToString(level as integer = 0) as string
 		
@@ -93,6 +97,8 @@ end constructor
 
 destructor jsonItem()
 	this._value = ""
+	this._key = ""
+	this._ismalformed = false
 	for i as integer = 0 to ubound(this._children)
 		delete this._children(i)
 	next
@@ -308,7 +314,7 @@ end function
 
 function JsonItem.ContainsKey(newKey as string) as boolean
 	if ( this._datatype <> jsonObject ) then return false
-		
+	
 	for i as integer = 0 to this._count
 		if ( this._children(i)->_key = newKey ) then
 			return true
@@ -603,6 +609,11 @@ sub jsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		end if
 		currentItem->_isMalformed = true
 		return
+end sub
+
+sub jsonItem.Parse( inputString as string)
+	this.destructor()
+	this.Parse( cast (byte ptr, strptr(inputstring)), len(inputString)-1)
 end sub
 
 function JsonItem.RemoveItem(newKey as string) as boolean

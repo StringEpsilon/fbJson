@@ -1,42 +1,60 @@
 # fbJson
 
-A small JSON library written in FreeBASIC
+A small JSON library written in FreeBASIC.
 
-## Stability
+Latest stable is 0.14.0
 
-Current stable is 0.13. Tested with fbc 1.05
+## Parsing stuff
 
-I still work on the internals of jsonItem quite a bit. I do not recommend using unlabeled commits. The API however should not change dramatically.
+You can either give the JSON input via the constructor:
 
-Please report all issues.
+```
+dim item as jsonItem = JsomItem("{}")
+```
 
-## The code ##
+Or you can create the instance first and then use .Parse().
 
-The main parser ( `jsonTime.Parse()` ) is written do to as little allocations, string comparisons and concatinations as possible.
+```
+dim item as jsonItem
+' some code ...
+item.Parse("{}")
+```
 
-This code is deliberatly ugly for the sake of performance. I even had to use GOTO to make the errorhandling somewhat acceptable.
+You could also overwrite instances with the constructor like below, but that comes with some overhead.
 
-## API
+```
+dim item as jsonItem
+' some code ...
+item = JsomItem("{}")
+```
+
+## Accessing elements
+
+You can access any child-element via the square brackets, either by using the index of the element,
+or in case of json-Objects, using the key.
+
+`jsonItem[string]` 
+Returns the child element with the corresponding key. 
+
+Keys are case senstive.
+
+`jsonItem[integer]` 
+Returns the nTh child of the item.
+
+Keep in mind that the index starts at 0.
+
+## Other properties and methods
 
 #### JsonItem
 
-`jsonItem()` 
-Initilizes an empty item (of type `null` )
-
-`jsonItem(string)`
-Initializes a the item with a JSON-string to parse.
-
-`jsonItem[string]` 
-Returns the child element with the corresponding key.
-
-`jsonItem[integer]` 
-Returns the nth child of the item.
-
 `jsonItem.Count` 
-Gets the number of children.
+Gets the total number of children.
 
 `jsonItem.DataType` 
 Gets the datatype of the item.
+
+`jsonItem.Key`
+Gets or sets the key of the item. Setting the key will _silently_ fail when the new key is already in use. 
 
 `jsonItem.Value as string` 
 Gets or sets the value of the item (as string). Also sets the datatype. Returns an emptry string on objects and arrays.
