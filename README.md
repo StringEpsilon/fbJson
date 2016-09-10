@@ -2,7 +2,11 @@
 
 A small JSON library written in FreeBASIC.
 
-Latest stable is 0.14.0
+Latest stable is 0.14.1
+
+## License
+
+fbJson is licensed under the MPL 2.0 from version 0.14.1 onwards.
 
 ## Parsing stuff
 
