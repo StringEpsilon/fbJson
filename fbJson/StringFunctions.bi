@@ -43,22 +43,23 @@ function DeEscapeString(byref escapedString as string) as boolean
 		' 92 is backslash
 		if ( escapedString[i] = 92 ) then
 			if ( i < length ) then
-				select case as const escapedString[i-trimsize+1]
+				select case as const escapedString[i+1]
 				case 34, 92, 47: ' " \ /
 					' Nothing to do here.
 				case 98 ' b
-					escapedString[i-trimsize+1] = 8 ' backspace
+					escapedString[i+1] = 8 ' backspace
 				case 102 ' f
-					escapedString[i-trimsize+1] = 12
+					escapedString[i+1] = 12
 				case 110 ' n
-					escapedString[i-trimsize+1] = 10
+					escapedString[i+1] = 10
 				case 114 ' r
-					escapedString[i-trimsize+1] = 13
+					escapedString[i+1] = 13
 				case 116 ' t
-					escapedString[i-trimsize+1] = 9 ' tab
+					escapedString[i+1] = 9 ' tab
 				case 117 ' u
 					' TO DO: Escape unicode sequences.
 				case else
+					print "Found else: >" & chr(escapedString[i-trimsize+1]) &"<"
 					return false
 				end select
 				trimSize+=1
