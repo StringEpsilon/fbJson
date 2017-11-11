@@ -9,6 +9,18 @@
 
 namespace fbJsonInternal
 
+enum jsonError
+	arrayNotClosed
+	objectNotClosed
+	stringNotClosed
+	invalidValue
+	invalidEscapeSequence
+	invalidNumber
+	expectedKey
+	expectedValue
+	unexpectedToken
+end enum
+
 enum jsonToken
 	tab = 9
 	newLine = 10
@@ -53,7 +65,7 @@ type JsonItem
 		declare sub Parse(jsonString as byte ptr, endIndex as integer)
 		
 		declare function AppendChild(newChild as JsonItem ptr) as boolean
-		
+		declare sub setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger)
 	public:
 		declare static function ParseJson(inputString as string) byref as JsonItem
 		declare constructor()
@@ -90,8 +102,51 @@ type JsonItem
 		declare function RemoveItem(key as string) as boolean
 		declare function RemoveItem(index as integer) as boolean
 		
-		declare function ContainsKey(key as string) as boolean	
+		declare function ContainsKey(key as string) as boolean
 end type
+
+sub JsonItem.setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger) 
+	using fbJsonInternal
+	dim as integer lineNumber = 1
+	dim as integer linePosition = 1
+	dim as integer lastBreak = 0
+	dim as string lastLine
+	for j as integer = 0 to position
+		if ( jsonString[j] = 10 ) then
+			lineNumber +=1
+			linePosition = 1
+			lastBreak = j
+		end if
+		linePosition +=1
+	next
+	select case as const errorCode
+		case arrayNotClosed:
+			this._error = "Array was not properly closed. Expected ']' at position "& linePosition &" on line "& lineNumber &", found '"& chr(jsonstring[position]) &"' instead."
+		case objectNotClosed:
+			this._error = "Object was not properly closed. Expected '}' at position "& linePosition &" on line "& lineNumber &", found '"& chr(jsonstring[position]) &"' instead."
+		case stringNotClosed:
+			this._error = "String value or key was not closed. Expected '""', found "& chr(jsonstring[position]) &" at position "& linePosition &" on line "& lineNumber &"."
+		case invalidValue:
+			this._error = "Invalid value '"& this._value &"' encountered at position "& linePosition &" on line "& lineNumber &"."
+		case invalidEscapeSequence:
+			this._error = "Could not de-escape '"& this._value &"' encountered at position "& linePosition &" on line "& lineNumber &"."
+		case invalidNumber:
+			this._error = "Invalid number '"& this._value &"' encountered at position "& linePosition &" on line "& lineNumber &"."
+		case expectedKey:
+			this._error = "Expected a key at position "& linePosition &" on line "& lineNumber &", found '"& chr(jsonstring[position]) &"' instead."
+		case expectedValue:
+			this._error = "Expected a value at position "& linePosition &" on line "& lineNumber &", found '"& chr(jsonstring[position]) &"' instead."
+		case unexpectedToken:
+			this._error = "Unexpected token '"& chr(jsonstring[position]) &"' at "& linePosition &" on line "& lineNumber &"."
+	end select
+	
+	this._datatype = malformed
+	this._value = ""
+	#ifdef fbJSON_debug
+		print "fbJSON Error: "& this._error
+		end -1
+	#endif
+end sub
 
 constructor JsonItem()
 	' Nothing to do
@@ -396,13 +451,17 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			' Note: Not a single string-comparison in here. 
 			select case as const jsonstring[i]
 				case jsonToken.BackSlash
-					goto errorHandling
+					currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+					return
 
 				case jsonToken.Colon:
 					if ( state = keyTokenClosed ) then 
 						state = valueToken
 						trimLeftActive = true
 						valueStart = i+1
+					else
+						currentItem->setErrorMessage(expectedKey, jsonstring, i)
+						return
 					end if
 					
 				case jsonToken.Comma:
@@ -410,6 +469,9 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						state = valueTokenClosed
 					elseif ( state = nestEndHandled ) then
 						state = resetState
+					else 
+						currentItem->setErrorMessage(expectedKey, jsonstring, i)
+						return
 					end if
 					
 				case jsonToken.CurlyOpen:
@@ -420,7 +482,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						currentItem = child
 						state = resetState
 					else
-						goto errorHandling
+						currentItem->setErrorMessage(expectedKey, jsonstring, i)
+						return
 					end if
 					
 				case jsonToken.SquareOpen:
@@ -431,21 +494,23 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						currentItem = child
 						state = resetState
 					else
-						goto errorHandling
+						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+						return
 					end if
 					
 				case jsonToken.CurlyClose:
-					if ( currentItem->_datatype = jsonObject) then
+					if (currentItem->_datatype = jsonObject) then
 						state = nestEnd
-						
 					else
-						goto errorHandling
+						currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
+						return
 					end if					
 				case jsonToken.SquareClose:
-					if ( currentItem->_datatype = jsonArray) then
+					if (currentItem->_datatype = jsonArray) then
 						state = nestEnd
 					else
-						goto errorHandling
+						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+						return
 					end if
 					
 				case jsonToken.Space, jsonToken.Tab, jsonToken.NewLine, 13
@@ -455,7 +520,6 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						valueStart +=1
 					end if
 				case jsonToken.Quote
-					
 					' The closing quote get's through to here. We treat is as part of a value, but without throwing errors.
 					if ( state = valueToken ) then
 						valueLength +=1
@@ -467,8 +531,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						valueLength +=1
 						trimLeftActive = false
 					else
-						' If not in value parsing, we have invalid JSON at this point.
-						goto errorHandling
+						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+						return
 					end if
 			end select
 		else
@@ -479,10 +543,20 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		end if	
 		
 		if ( i = parseEnd) then
-			if ( isStringOpen ) then goto errorHandling
+			if ( isStringOpen ) then 
+				currentItem->setErrorMessage(stringNotClosed, jsonstring, i+1)
+				return 
+			end if
 			if ( state <> nestEnd ) then
-				if ( currentItem->_parent <> 0 andAlso state <> valueToken ) then
-					goto errorHandling
+
+				if (state = keyTokenClosed) then
+					currentItem->setErrorMessage(expectedKey, jsonstring, i+1)
+					return
+				end if
+						
+				if ( currentItem->_parent <> 0) then
+					currentItem->setErrorMessage(iif(currentItem->_datatype = jsonObject,objectNotClosed, arrayNotClosed), jsonstring, i)
+					return
 				end if
 			
 				if ( state = valueToken and valueLength > 0 ) then
@@ -490,7 +564,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				end if
 			end if
 			if ( state = valueToken ) then
-				goto errorHandling
+				currentItem->setErrorMessage(expectedValue, jsonstring, i+1)
+				return
 			end if
 		end if
 		
@@ -506,11 +581,15 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						child->_dataType = jsonDataType.jsonString
 						if ( instr(child->_value, "\") <> 0 ) then 
 							if ( DeEscapeString(child->_value) = false ) then
-								goto errorHandling
+								FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
+								child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
+								return
 							end if
 						end if
 					else
-						goto errorHandling
+						FastMid(child->_value, jsonString, valuestart, valueLength)
+						child->setErrorMessage(stringNotClosed, jsonstring, i)
+						return
 					end if
 				case 110,78, 102,70, 116,84 ' n,N f,F t,T
 					' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
@@ -521,8 +600,9 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						case "true", "false"
 							child->_dataType = jsonBool
 						case else
-							child->_value = ""
-							goto errorHandling
+							' Invalid value or missing quotation marks
+							child->setErrorMessage(invalidValue, jsonstring, i)
+							return
 					end select
 				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
 					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
@@ -530,14 +610,18 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						FastMid(child->_value, jsonString, valuestart, valueLength)
 						child->_dataType = jsonNumber
 						if ( cdbl(child->_value) = 0 andAlso child->_value <> "0" ) then
-							goto errorHandling
+							child->setErrorMessage(invalidNumber, jsonstring, i)
+							return
 						end if
 					else
-						goto errorHandling
+						child->setErrorMessage(invalidValue, jsonstring, i)
+						return
 					end if
 				case jsonToken.SquareClose
 				case else
-					 goto errorHandling
+					FastMid(child->_value, jsonString, valuestart, valueLength)
+					child->setErrorMessage(invalidValue, jsonstring, i)
+					return
 				end select
 				
 				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
@@ -549,7 +633,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				end if
 			else
 				if state <> nestEnd then
-					goto errorHandling
+					child->setErrorMessage(arrayNotClosed, jsonstring, i)
+					return
 				end if
 			end if
 			valueLength = 0
@@ -574,41 +659,6 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			end if
 		end if
 	next
-	return
-	
-	errorHandling:
-		dim as integer lineNumber = 1
-		dim as integer position = 1
-		dim as integer lastBreak = 0
-		dim as string lastLine
-		if (state = valueTokenClosed) then
-			i = valueStart
-		end if
-		for j as integer = 0 to i
-			if ( jsonString[j] = 10 ) then
-				lineNumber +=1
-				position = 1
-				lastBreak = j
-			end if
-			position +=1
-		next
-
-		if ( isStringOpen ) then
-			currentItem->_error = "Expected closing quote, found: "+ chr(jsonstring[i]) + "' in line "& lineNumber &" at position " & position
-		else
-			currentItem->_error = "Unexpected token '"+ chr(jsonstring[i]) + "' in line "& lineNumber &" at position " & position & "."
-		end if
-		#ifdef fbJson_DEBUG
-			fastmid(lastLine,jsonString, lastBreak +1, i - lastBreak +1)
-			print lastLine
-			print space(position-3) + "^"
-			print "fbJSON Error: " & currentItem->_error, state, valueLength
-		#endif
-		if ( child <> 0 andAlso child->_parent = 0) then
-			delete child
-		end if
-		currentItem->_isMalformed = true
-		return
 end sub
 
 sub JsonItem.Parse( inputString as string)
