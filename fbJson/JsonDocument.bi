@@ -17,8 +17,8 @@ end type
 operator jsonDocument.[](key as string) byref as jsonItem	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to this.Count -1
-			if ( this._children(i)->_key = key ) then
-				return *this._children(i)
+			if ( this._children[i]->_key = key ) then
+				return *this._children[i]
 			end if
 		next
 	end if
@@ -27,7 +27,7 @@ end operator
 
 operator jsonDocument.[](index as integer) byref as jsonItem
 	if ( index <= this.Count -1 ) then
-		return *this._children(index)
+		return *this._children[index]
 	end if
 	return *new jsonItem()
 end operator

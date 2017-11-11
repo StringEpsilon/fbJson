@@ -45,7 +45,7 @@ type JsonItem
 		_dataType as jsonDataType = jsonNull
 		_value as string
 		_error as string
-		_children(any) as JsonItem ptr
+		_children as jsonItem ptr ptr = 0
 		_parent as JsonItem ptr
 		_key as string
 		_count as integer = -1
@@ -103,13 +103,13 @@ constructor JsonItem(byref jsonString as string)
 end constructor
 
 destructor JsonItem()
-	this._value = ""
-	this._key = ""
-	this._ismalformed = false
-	for i as integer = 0 to ubound(this._children)
-		delete this._children(i)
-	next
-	this._count = -1
+	if (this._count >= 0 and this._children <> 0) then
+		for i as integer = 0 to this._count
+			delete this._children[i]
+		next
+		this._count = -1
+		deallocate(this._children)
+	end if
 end destructor
 
 operator JsonItem.LET(copy as JsonItem)
@@ -122,10 +122,10 @@ operator JsonItem.LET(copy as JsonItem)
 	this._count = copy._count
 	
 	if ( copy._count >= 0) then
-		redim this._children(copy._count)
+		this._children = callocate(sizeof(jsonItem ptr) * (copy._count+1))
 		for i as integer = 0 to copy._count
-			this._children(i) = callocate(sizeOf(JsonItem))
-			*this._children(i) = *copy._children(i)
+			this._children[i] = callocate(sizeOf(JsonItem))
+			*this._children[i] = *copy._children[i]
 		next
 	end if
 end operator
@@ -133,8 +133,8 @@ end operator
 operator JsonItem.[](newKey as string) byref as JsonItem	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to this._count
-			if ( this._children(i)->_key = newkey ) then
-				return *this._children(i)
+			if ( this._children[i]->_key = newkey ) then
+				return *this._children[i]
 			end if
 		next
 	end if
@@ -148,7 +148,7 @@ end operator
 
 operator JsonItem.[](index as integer) byref as JsonItem
 	if ( index <= this._count ) then
-		return *this._children(index)
+		return *this._children[index]
 	end if
 	
 	#ifdef fbJSON_debug
@@ -311,8 +311,13 @@ function JsonItem.AppendChild(newChild as JsonItem ptr) as boolean
 	newChild->_parent = @this
 	this._count += 1
 	
-	redim preserve this._children(this._count)
-	this._children(this._count) = newChild
+	if this._children = 0 then
+		this._children = allocate(sizeof(jsonItem ptr) * (this._count+1))
+	else
+		this._children = reallocate(this._children, sizeof(jsonItem ptr) * (this._count+1))
+	end if
+	
+	this._children[this._count] = newChild
 	if ( newChild->_isMalformed ) then
 		this._isMalformed = true
 	end if
@@ -323,7 +328,7 @@ function JsonItem.ContainsKey(newKey as string) as boolean
 	if ( this._datatype <> jsonObject ) then return false
 	
 	for i as integer = 0 to this._count
-		if ( this._children(i)->_key = newKey ) then
+		if ( this._children[i]->_key = newKey ) then
 			return true
 		end if
 	next
@@ -335,7 +340,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	
 	' Objects we will work with:
 	dim currentItem as JsonItem ptr = @this
-	dim as JsonItem ptr child '= new JsonItem
+	dim as JsonItem ptr child
 	
 	' key states and variables for the main parsing:
 	dim i as integer
@@ -348,37 +353,29 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	dim as integer valueLength = 0
 	dim as boolean trimLeftActive = false
 	
-	dim as byte character = peek(ubyte, jsonstring)
-	
-	if ( character = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
+	if ( jsonstring[i] = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
 		currentItem->_datatype = jsonObject
 		state = parserState.none
-	elseif ( character = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
+	elseif ( jsonstring[i] = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
 		currentItem->_dataType = jsonArray
 		valueStart = 1
 		trimLeftActive = true
 		state = valueToken
 	else
-		'child = currentItem
 		parseStart = 0
 		parseEnd = endIndex
 		state = valueToken
-		'this._isMalformed = true
-		'return
 	end if
 	
 	' Abort early:
 	if ( endIndex <= 1) then
-		delete child
 		return 
 	end if
 		
 	' Skipping the opening and closing brackets makes things a bit easier.
-	for i = parseStart to parseEnd
-		character = peek(ubyte, jsonString + i)
-		
+	for i = parseStart to parseEnd		
 		' Because strings can contain json tokens, we handle them seperately:
-		if ( character = jsonToken.Quote AndAlso (I = 0 orElse jsonString[i-1] <> jsonToken.BackSlash) ) then
+		if ( jsonString[i] = jsonToken.Quote AndAlso (I = 0 orElse jsonString[i-1] <> jsonToken.BackSlash) ) then
 			isStringOpen = not(isStringOpen)
 			if ( currentItem->_datatype = jsonObject ) then
 				select case as const state
@@ -397,7 +394,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		' When not in a string, we can handle the complicated suff:
 		if ( isStringOpen = false ) then
 			' Note: Not a single string-comparison in here. 
-			select case as const character
+			select case as const jsonstring[i]
 				case jsonToken.BackSlash
 					goto errorHandling
 
@@ -438,14 +435,14 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					end if
 					
 				case jsonToken.CurlyClose:
-					if ( currentItem->_parent <> 0 andAlso currentItem->_datatype = jsonObject) then
+					if ( currentItem->_datatype = jsonObject) then
 						state = nestEnd
 						
 					else
 						goto errorHandling
 					end if					
 				case jsonToken.SquareClose:
-					if ( currentItem->_parent <> 0 andAlso currentItem->_datatype = jsonArray) then
+					if ( currentItem->_datatype = jsonArray) then
 						state = nestEnd
 					else
 						goto errorHandling
@@ -454,10 +451,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				case jsonToken.Space, jsonToken.Tab, jsonToken.NewLine, 13
 					' Here, we count the left trim we need. This is faster than using TRIM() even for a single space in front of the value
 					' And most important: It's not slower if we have no whitespaces.
-					if ( state = valueToken ) then
-						if ( trimLeftActive = true) then
-							valueStart +=1
-						end if
+					if ( state = valueToken and trimLeftActive) then
+						valueStart +=1
 					end if
 				case jsonToken.Quote
 					' The closing quote get's through to here. We treat is as part of a value, but without throwing errors.
@@ -497,8 +492,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				goto errorHandling
 			end if
 		end if
-
-		if ( state = valueTokenClosed orElse state = nestEnd ) then
+		
+		if (state = valueTokenClosed orElse state = nestEnd) then
 			' because we already know how long the string we are going to parse is, we can skip if it's 0.
 			if ( valueLength <> 0 ) then
 				if (child = 0) then child = new JsonItem()
@@ -533,8 +528,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					if ( lastCharacter <= 57 andAlso lastCharacter >= 48 ) then
 						FastMid(child->_value, jsonString, valuestart, valueLength)
 						child->_dataType = jsonNumber
-						child->_value = str(cdbl(child->_value))
-						if ( child->_value = "0" andAlso child->_value <> "0" ) then
+						if ( cdbl(child->_value) = 0 andAlso child->_value <> "0" ) then
 							goto errorHandling
 						end if
 					else
@@ -552,7 +546,6 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				else
 					currentItem->AppendChild(child)
 				end if
-				
 			else
 				if state <> nestEnd then
 					goto errorHandling
@@ -565,10 +558,9 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			else
 				state = resetState
 			end if
-			
 		end if
 		
-		if ( state = resetState ) then
+		if( state = resetState) then
 			valueLength = 0
 			child = 0
 			if ( currentItem->_datatype = jsonArray ) then
@@ -601,9 +593,9 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		next
 
 		if ( isStringOpen ) then
-			currentItem->_error = "Expected closing quote, found: "+ chr(character) + "' in line "& lineNumber &" at position " & position
+			currentItem->_error = "Expected closing quote, found: "+ chr(jsonstring[i]) + "' in line "& lineNumber &" at position " & position
 		else
-			currentItem->_error = "Unexpected token '"+ chr(character) + "' in line "& lineNumber &" at position " & position & "."
+			currentItem->_error = "Unexpected token '"+ chr(jsonstring[i]) + "' in line "& lineNumber &" at position " & position & "."
 		end if
 		#ifdef fbJson_DEBUG
 			fastmid(lastLine,jsonString, lastBreak +1, i - lastBreak +1)
@@ -628,7 +620,7 @@ function JsonItem.RemoveItem(newKey as string) as boolean
 	
 	if ( this._datatype = jsonObject ) then
 		for i as integer = 0 to this._count
-			if ( this._children(i)->_key = newkey ) then
+			if ( this._children[i]->_key = newkey ) then
 				index = i
 				exit for
 			end if
@@ -640,14 +632,16 @@ end function
 
 function JsonItem.RemoveItem(index as integer) as boolean
 	if ( index <= this._count andAlso index > -1 ) then
-		delete this._children(index)
+		delete this._children[index]
 		if ( index < this.Count -1 ) then
 			for i as integer = index to this._count 
-				this._children(i) = this._children(i+1)
+				this._children[i] = this._children[i+1]
 			next
 		end if
 		
-		redim preserve this._children(this._count )
+		this._count -= 1
+		this._children = reallocate(this._children, sizeof(jsonItem ptr) * this._count)
+		
 		return true
 	end if
 	return false
@@ -676,7 +670,7 @@ function JsonItem.ToString(level as integer = 0) as string
 				result += """"
 			end if
 			
-			result += this[i].value
+			result += this[i]._value
 			
 			if ( this[i].datatype = jsonString) then
 				result += """"
