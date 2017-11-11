@@ -455,6 +455,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						valueStart +=1
 					end if
 				case jsonToken.Quote
+					
 					' The closing quote get's through to here. We treat is as part of a value, but without throwing errors.
 					if ( state = valueToken ) then
 						valueLength +=1

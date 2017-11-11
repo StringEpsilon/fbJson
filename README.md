@@ -2,11 +2,22 @@
 
 A small JSON library written in FreeBASIC.
 
-Latest stable is 0.14.1
+Latest stable is 0.15
 
 ## License
 
 fbJson is licensed under the MPL 2.0 from version 0.14.1 onwards.
+
+## ToDos for 1.0
+
+* Compliance with the JSON specification
+    * Convert UTF16 surrogate pairs to UTF8 on de-escaping
+    * Write properly escaped json on toString() call.
+    * Check for work on general spec compliance
+    * Write tests.
+* More meaningful error messages
+* More quality of life functionality
+
 
 ## Parsing stuff
 
