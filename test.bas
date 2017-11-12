@@ -122,11 +122,8 @@ item = jsonItem("[[1,2,3,4],[4,3,2,1],[5,6,7,8]]")
 
 AssertEqual(jsonArray, item.Datatype)
 AssertEqual(3, item.Count)
-? "Check length of first array"
 AssertEqual(4, item[0].Count)
-? "Check length of second array"
 AssertEqual(4, item[1].Count)
-? "Check length of third array"
 AssertEqual(4, item[2].Count)
 AssertEqual("8", item[2][3].value)
 
@@ -197,6 +194,12 @@ print "#5 - Testing flat value - string : ""value"""
 item = jsonItem("""value""")
 assertEqual(jsonString, item.Datatype)
 assertEqual("value", item.Value)
+
+print "#5 - Testing strings - \uXXXX and surrogate pairs"
+item = jsonItem("""\u2665123456""")
+assertEqual("♥123456", item.value)
+item = jsonItem("""\uD83E\uDDC0123456""")
+assertEqual("🧀123456", item.value)
 
 print "[OK]"
 

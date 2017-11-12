@@ -38,7 +38,7 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 end sub
 
 function EscapedToUtf8(byref escapedPoint as string) as string
-	dim as ulong codePoint = valulng("&h" & right(escapedPoint, len(escapedPoint)-2))	
+	dim as ulong codePoint = valulng("&h" & escapedPoint)	
 	dim result as string
 	
 	if codePoint <= &h7F then
@@ -76,10 +76,10 @@ function EscapedToUtf8(byref escapedPoint as string) as string
 end function
 
 function EscapeSequenceToGlyph(sequence as string) as string
-	if (len(sequence) <> 6) then
+	if (len(sequence) <> 4) then
 		return ""
 	else
-		for j as integer = 2 to len(sequence)-1
+		for j as integer = 0 to len(sequence)-1
 			if (not ((sequence[j]>= 48 and sequence[j] <= 57 ) or (sequence[j] >= 65 and sequence[j] <= 70 ))) then
 				return ""
 			end if
@@ -88,6 +88,36 @@ function EscapeSequenceToGlyph(sequence as string) as string
 	return  EscapedToUtf8(sequence)
 end function
 
+
+function IsSurrogate(codepoint as long ) as boolean
+	if (&hD800 <= codepoint and codepoint <= &hDBFF) then
+		return true
+	end if
+	return false
+end function
+
+function SurrogateToUtf8(surrogate() as long) as string
+	dim as long codepoint = 0
+    if (&hD800 <= surrogate(0) and surrogate(0) <= &hDBFF) then
+		if (&hDC00 <= surrogate(1) and surrogate(1) <= &hDFFF) then
+		
+			codepoint = &h10000
+			codepoint += (surrogate(0) and &h03FF) shl 10
+			codepoint += (surrogate(1) and &h03FF)
+		end if
+	end if
+	
+	
+	if ( codePoint = 0 ) then
+		return replacementChar
+	end if
+	dim result as string = space(4)
+	result[0] = &hF0 OR codepoint SHR 18 AND &h7
+	result[1] = &h80 OR codepoint SHR 12 AND &h3F
+	result[2] = &h80 OR codepoint SHR 6 AND &h3F
+	result[3] = &h80 OR codepoint AND &h3F
+	return result
+end function
 
 function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
@@ -112,21 +142,34 @@ function DeEscapeString(byref escapedString as string) as boolean
 					escapedString[i+1] = 9 ' tab
 				case 117 ' u
 					'magic number '6': 2 for "\u" and 4 digit.
-					dim sequence as string = mid(escapedString, i+1, 6) 
-					dim glyph as string = EscapeSequenceToGlyph(sequence)
-					dim pad as integer = 4 - len(glyph)
+					dim sequence as string = mid(escapedString, i+3, 4) 
+					dim pad as integer
+					dim as string glyph
+					dim as long codepoint = vallng("&h"& sequence)
+					if (IsSurrogate(codepoint) ) then
+						dim secondSurrogate as string = mid(escapedString, i+7+2, 4)
+						if (len(secondSurrogate) = 4) then
+							dim as long array(1) = {codepoint, vallng("&h"&secondSurrogate)}
+							glyph = SurrogateToUtf8(array())
+							pad = 12 - len(glyph)
+						else
+							return false
+						end if
+					else
+						glyph = EscapeSequenceToGlyph(sequence)
+						pad = 6 - len(glyph)
+
+					end if
 					
 					if (glyph = "") then
 						return false
 					end if
 					
 					for j as integer = 0 to len(glyph)-1
-						escapedString[i+2+j+pad] = glyph[j]
+						escapedString[i+j+pad] = glyph[j]
 					next
-					trimSize += 5 - len(glyph)
-					i += 5 - len(glyph)
-					
-					' TODO: UTF16 Surrogate pairs. Why? Because JSON Spec. :/
+					i += pad -1
+					trimSize += pad -1
 				case else
 					return false
 				end select
