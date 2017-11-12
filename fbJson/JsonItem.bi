@@ -6,54 +6,10 @@
 
 #include once "JsonDatatype.bi"
 #include once "StringFunctions.bi"
-
-namespace fbJsonInternal
-
-enum jsonError
-	arrayNotClosed
-	objectNotClosed
-	stringNotClosed
-	invalidValue
-	invalidEscapeSequence
-	invalidNumber
-	expectedKey
-	expectedValue
-	unexpectedToken
-end enum
-
-enum jsonToken
-	tab = 9
-	newLine = 10
-	space = 32
-	quote = 34
-	comma = 44
-	colon = 58
-	squareOpen = 91
-	backSlash = 92
-	forwardSlash = 47
-	squareClose = 93
-	curlyOpen = 123
-	curlyClose = 125
-	minus = 45
-	plus = 43
-end enum
-
-enum parserState
-	none = 0
-	keyToken
-	keyTokenClosed
-	valueToken
-	valueTokenClosed
-	nestEnd
-	nestEndHandled
-	resetState
-end enum
-
-end namespace
+#include once "fbJsonInternals.bas"
 
 type JsonItem 
 	protected:
-		_isMalformed as boolean = false
 		_dataType as jsonDataType = jsonNull
 		_value as string
 		_error as string
@@ -175,7 +131,6 @@ operator JsonItem.LET(copy as JsonItem)
 	this._value = copy._value
 	this._dataType = copy._dataType
 	this._error = copy._error
-	this._isMalformed = copy._isMalformed
 	this._count = copy._count
 	
 	if ( copy._count >= 0) then
@@ -241,7 +196,6 @@ property JsonItem.Count() as integer
 end property
 
 property JsonItem.DataType() as jsonDataType
-	if ( this._isMalformed ) then return malformed
 	return this._datatype
 end property
 
@@ -257,10 +211,10 @@ property JsonItem.Value( byref newValue as string)
 			this._dataType = jsonString
 			this._value = mid(newValue,2, len(newValue)-2)
 			if ( DeEscapeString(this._value) = false ) then
-				this._isMalformed = true
+				this.setMalformed()
 			end if
 		else
-			this._isMalformed = true
+			this.setMalformed()
 		end if
 	case 48,49,50,51,52,53,54,55,56,57 ' 0 - 9
 		dim as byte lastCharacter = newValue[len(newValue)-1]
@@ -272,13 +226,13 @@ property JsonItem.Value( byref newValue as string)
 			if ( this._datatype = jsonString ) then
 				this._value = newValue
 			else
-				this._isMalformed = true
+				this.setMalformed()
 			end if
 		else
 			this._dataType = jsonNumber
 			this._value = str(cdbl(newValue))
 			if ( this._value = "0" andAlso newValue <> "0" ) then
-				this._isMalformed = true
+				this.setMalformed()
 			end if
 		end if
 	case 110,78, 102,70, 116,84 ' n, f, t
@@ -374,7 +328,7 @@ function JsonItem.AppendChild(newChild as JsonItem ptr) as boolean
 	end if
 	
 	this._children[this._count] = newChild
-	if ( newChild->_isMalformed ) then
+	if ( newChild->_datatype = malformed ) then
 		this.SetMalformed()
 	end if
 	return true
