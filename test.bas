@@ -3,6 +3,8 @@
 	License, v. 2.0. If a copy of the MPL was not distributed with this
 	file, You can obtain one at http://mozilla.org/MPL/2.0/. 
 '/
+'#define fbJSON_debug
+'#define fbJSON_debug
 
 sub AssertEqual overload (expected as integer, result as integer) 
 	if ( expected <> result ) then
@@ -18,7 +20,6 @@ sub AssertEqual(expected as string, result as string)
 	end if
 end sub
 
-#define fbJson_debug
 #include once "fbJson.bi"
 
 dim as jsonItem item 
@@ -226,9 +227,9 @@ item = jsonItem("1000000")
 assertEqual(jsonNumber, item.Datatype)
 assertEqual("1000000", item.Value)
 
-item = jsonItem("10.00000")
+item = jsonItem("10.000001")
 assertEqual(jsonNumber, item.Datatype)
-assertEqual("10", item.Value)
+assertEqual("10.000001", item.Value)
 
 item = jsonItem("12.3456789")
 assertEqual(jsonNumber, item.Datatype)
@@ -238,7 +239,63 @@ item = jsonItem("-12.3456789")
 assertEqual(jsonNumber, item.Datatype)
 assertEqual("-12.3456789", item.Value)
 
-item = jsonItem("+12.3456789")
+item = jsonItem("[12.00000000]")
+assertEqual("12", item[0].value)
+assertEqual(jsonNumber, item[0].Datatype)
+
+item = jsonItem("[+12.3456789]")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("{""foo"": NaN}")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("[-NaN]")
+assertEqual(malformed, item.Datatype)
+'/
+
+item = jsonItem("{""foo"": [Infinity]}")
+assertEqual(malformed, item.Datatype)
+assertEqual(malformed, item[0].Datatype)
+
+
+
+item = jsonItem("[-Infinity]")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("[0E+]")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("[.2e-3]")
 assertEqual(malformed, item.Datatype)
 
 print "[OK]"
+
+print "#6 - Array structure"
+
+item = jsonItem("[,1]")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("["": 1]]")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("[1,1,1")
+assertEqual(malformed, item.Datatype)
+
+print "#7 - Objects"
+
+item = jsonItem("{"""":""a""}")
+assertEqual(jsonObject, item.Datatype)
+assertEqual("a", item[0].value)
+assertEqual("a", item[""].value)
+print "[OK]"
+
+print "#8 - Strings"
+
+item = jsonItem("""\""\\/\b\f\n\r\t""")
+assertEqual(jsonString, item.Datatype)
+
+item = jsonItem("[""\")
+assertEqual(malformed, item.Datatype)
+
+print "[OK]"
+

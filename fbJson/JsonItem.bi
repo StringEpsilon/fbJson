@@ -58,12 +58,12 @@ type JsonItem
 		_value as string
 		_error as string
 		_children as jsonItem ptr ptr = 0
-		_parent as JsonItem ptr
+		_parent as JsonItem ptr = 0
 		_key as string
 		_count as integer = -1
 		
 		declare sub Parse(jsonString as byte ptr, endIndex as integer)
-		
+		declare sub SetMalformed()
 		declare function AppendChild(newChild as JsonItem ptr) as boolean
 		declare sub setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger)
 	public:
@@ -106,11 +106,13 @@ type JsonItem
 end type
 
 sub JsonItem.setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger) 
+	
 	using fbJsonInternal
 	dim as integer lineNumber = 1
 	dim as integer linePosition = 1
 	dim as integer lastBreak = 0
 	dim as string lastLine
+	
 	for j as integer = 0 to position
 		if ( jsonString[j] = 10 ) then
 			lineNumber +=1
@@ -140,8 +142,8 @@ sub JsonItem.setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring a
 			this._error = "Unexpected token '"& chr(jsonstring[position]) &"' at "& linePosition &" on line "& lineNumber &"."
 	end select
 	
-	this._datatype = malformed
 	this._value = ""
+	this.SetMalformed()
 	#ifdef fbJSON_debug
 		print "fbJSON Error: "& this._error
 		end -1
@@ -186,7 +188,7 @@ operator JsonItem.LET(copy as JsonItem)
 end operator
 
 operator JsonItem.[](newKey as string) byref as JsonItem	
-	if ( this._datatype = jsonObject ) then
+	if ( this._datatype = jsonObject and this._count > -1 ) then
 		for i as integer = 0 to this._count
 			if ( this._children[i]->_key = newkey ) then
 				return *this._children[i]
@@ -195,7 +197,7 @@ operator JsonItem.[](newKey as string) byref as JsonItem
 	end if
 	
 	#ifdef fbJSON_debug
-		print "fbJSON Error: "& key & " not found in "& this.key
+		print "fbJSON Error: Key '"& key & "' not found in object "& this.key
 		end -1
 	#endif
 	return *new JsonItem()
@@ -235,7 +237,6 @@ property JsonItem.Parent() byref as JsonItem
 end property
 
 property JsonItem.Count() as integer
-	' +1 because arrays start at 0.
 	return this._count + 1
 end property
 
@@ -358,7 +359,7 @@ end function
 function JsonItem.AppendChild(newChild as JsonItem ptr) as boolean
 	if ( newChild = 0 ) then return false	
 	if ( this._datatype = jsonObject ) then 
-		if ( cbool(len(newChild->_key) = 0) OrElse this.ContainsKey(newChild->_key) ) then
+		if ( this.ContainsKey(newChild->_key) ) then
 			return false
 		end if
 	end if
@@ -374,7 +375,7 @@ function JsonItem.AppendChild(newChild as JsonItem ptr) as boolean
 	
 	this._children[this._count] = newChild
 	if ( newChild->_isMalformed ) then
-		this._isMalformed = true
+		this.SetMalformed()
 	end if
 	return true
 end function
@@ -389,6 +390,17 @@ function JsonItem.ContainsKey(newKey as string) as boolean
 	next
 	return false
 end function
+
+sub JsonItem.SetMalformed()
+	this._datatype = malformed
+	if (this._parent <> 0) then
+		dim item as jsonItem ptr = this._parent
+		do
+			item->_datatype = malformed
+			item = item->_parent
+		loop until item = 0
+	end if
+end sub
 
 sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer) 
 	using fbJsonInternal
@@ -408,14 +420,24 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	dim as integer valueLength = 0
 	dim as boolean trimLeftActive = false
 	
-	if ( jsonstring[i] = jsonToken.CurlyOpen andAlso jsonString[endIndex] = jsonToken.CurlyClose ) then
-		currentItem->_datatype = jsonObject
-		state = parserState.none
-	elseif ( jsonstring[i] = jsonToken.SquareOpen andAlso jsonString[endIndex] = jsonToken.SquareClose ) then
-		currentItem->_dataType = jsonArray
-		valueStart = 1
-		trimLeftActive = true
-		state = valueToken
+	if ( jsonstring[i] = jsonToken.CurlyOpen ) then
+		if ( jsonString[endIndex] = jsonToken.CurlyClose ) then
+			currentItem->_datatype = jsonObject
+			state = parserState.none
+		else
+			currentItem->setErrorMessage(objectNotClosed, jsonstring, i)
+			return
+		end if
+	elseif ( jsonstring[i] = jsonToken.SquareOpen ) then
+		if (jsonString[endIndex] = jsonToken.SquareClose ) then
+			currentItem->_dataType = jsonArray
+			valueStart = 1
+			trimLeftActive = true
+			state = valueToken
+		else
+			currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
+			return
+		end if
 	else
 		parseStart = 0
 		parseEnd = endIndex
@@ -569,7 +591,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 			end if
 		end if
 		
-		if (state = valueTokenClosed orElse state = nestEnd) then
+		if (state = valueTokenClosed orElse state = nestEnd) then			
 			' because we already know how long the string we are going to parse is, we can skip if it's 0.
 			if ( valueLength <> 0 ) then
 				if (child = 0) then child = new JsonItem()
@@ -583,13 +605,11 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 							if ( DeEscapeString(child->_value) = false ) then
 								FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 								child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
-								return
 							end if
 						end if
 					else
 						FastMid(child->_value, jsonString, valuestart, valueLength)
 						child->setErrorMessage(stringNotClosed, jsonstring, i)
-						return
 					end if
 				case 110,78, 102,70, 116,84 ' n,N f,F t,T
 					' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
@@ -600,40 +620,54 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						case "true", "false"
 							child->_dataType = jsonBool
 						case else
-							' Invalid value or missing quotation marks
+							FastMid(child->_value, jsonString, valuestart, valueLength)
+							' Invalid value or missing quotation marks							
 							child->setErrorMessage(invalidValue, jsonstring, i)
-							return
 					end select
 				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
 					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
-					if ( lastCharacter <= 57 andAlso lastCharacter >= 48 ) then
+					if ( lastCharacter >= 48 and lastCharacter <= 57) then
 						FastMid(child->_value, jsonString, valuestart, valueLength)
+						
+						child->_value = str(cdbl(child->_value))
 						child->_dataType = jsonNumber
-						if ( cdbl(child->_value) = 0 andAlso child->_value <> "0" ) then
+						if ( child->_value = "0" andAlso child->_value <> "0" ) then
 							child->setErrorMessage(invalidNumber, jsonstring, i)
-							return
 						end if
 					else
 						child->setErrorMessage(invalidValue, jsonstring, i)
-						return
 					end if
 				case jsonToken.SquareClose
+				
 				case else
 					FastMid(child->_value, jsonString, valuestart, valueLength)
 					child->setErrorMessage(invalidValue, jsonstring, i)
-					return
 				end select
 				
+				if (child->_datatype = malformed) then					
+					if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then						
+						delete child
+					else
+						currentItem->AppendChild(child)
+					end if
+					currentItem->SetMalformed()
+					return
+				end if
 				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
 					this._value = child->_value
 					this._datatype = child->_datatype
+					this._error = child->_error
 					delete child
 				else
 					currentItem->AppendChild(child)
 				end if
 			else
 				if state <> nestEnd then
-					child->setErrorMessage(arrayNotClosed, jsonstring, i)
+					if (child <> 0) then
+						child->setErrorMessage(arrayNotClosed, jsonstring, i)
+					else
+						currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
+					end if
 					return
 				end if
 			end if
