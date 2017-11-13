@@ -26,7 +26,6 @@ sub FastLeft(byref destination as string, length as uinteger)
 	destinationPtr->stringData = reallocate(destinationPtr->stringData,destinationPtr->size)
 end sub
 
-
 sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
 	if ( destinationPtr->size ) then deallocate destinationPtr->stringData
@@ -37,8 +36,7 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
 end sub
 
-function EscapedToUtf8(byref escapedPoint as string) as string
-	dim as ulong codePoint = valulng("&h" & escapedPoint)	
+function EscapedToUtf8(byref codepoint as long) as string
 	dim result as string
 	
 	if codePoint <= &h7F then
@@ -47,7 +45,7 @@ function EscapedToUtf8(byref escapedPoint as string) as string
 		return result
 	endif
 	
-	if 	(&hD800 <= codepoint AND codepoint <= &hDFFF) OR _
+	if (&hD800 <= codepoint AND codepoint <= &hDFFF) OR _
 		(codepoint > &h10FFFD) then
 		return replacementChar
 	end if
@@ -75,35 +73,14 @@ function EscapedToUtf8(byref escapedPoint as string) as string
 	return result
 end function
 
-function EscapeSequenceToGlyph(sequence as string) as string
-	if (len(sequence) <> 4) then
-		return ""
-	else
-		for j as integer = 0 to len(sequence)-1
-			if (not ((sequence[j]>= 48 and sequence[j] <= 57 ) or (sequence[j] >= 65 and sequence[j] <= 70 ))) then
-				return ""
-			end if
-		next
-	end if
-	return  EscapedToUtf8(sequence)
-end function
 
-
-function IsSurrogate(codepoint as long ) as boolean
-	if (&hD800 <= codepoint and codepoint <= &hDBFF) then
-		return true
-	end if
-	return false
-end function
-
-function SurrogateToUtf8(surrogate() as long) as string
+function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
 	dim as long codepoint = 0
-    if (&hD800 <= surrogate(0) and surrogate(0) <= &hDBFF) then
-		if (&hDC00 <= surrogate(1) and surrogate(1) <= &hDFFF) then
-		
+    if (&hD800 <= surrogateA and surrogateA <= &hDBFF) then
+		if (&hDC00 <= surrogateB and surrogateB <= &hDFFF) then
 			codepoint = &h10000
-			codepoint += (surrogate(0) and &h03FF) shl 10
-			codepoint += (surrogate(1) and &h03FF)
+			codepoint += (surrogateA and &h03FF) shl 10
+			codepoint += (surrogateB and &h03FF)
 		end if
 	end if
 	
@@ -145,18 +122,17 @@ function DeEscapeString(byref escapedString as string) as boolean
 					dim sequence as string = mid(escapedString, i+3, 4) 
 					dim pad as integer
 					dim as string glyph
-					dim as long codepoint = vallng("&h"& sequence)
-					if (IsSurrogate(codepoint) ) then
+					dim as long codepoint = strtoull(sequence, 0, 16)
+					if (&hD800 <= codepoint and codepoint <= &hDBFF) then
 						dim secondSurrogate as string = mid(escapedString, i+7+2, 4)
 						if (len(secondSurrogate) = 4) then
-							dim as long array(1) = {codepoint, vallng("&h"&secondSurrogate)}
-							glyph = SurrogateToUtf8(array())
+							glyph = SurrogateToUtf8(codepoint, strtoull(secondSurrogate, 0, 16))
 							pad = 12 - len(glyph)
 						else
 							return false
 						end if
-					else
-						glyph = EscapeSequenceToGlyph(sequence)
+					elseif (codepoint > 0) then
+						glyph = EscapedToUtf8(codepoint)
 						pad = 6 - len(glyph)
 
 					end if
