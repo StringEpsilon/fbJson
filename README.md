@@ -11,13 +11,16 @@ fbJson is licensed under the MPL 2.0 from version 0.14.1 onwards.
 ## ToDos for 1.0
 
 * Compliance with the JSON specification
-    * Convert UTF16 surrogate pairs to UTF8 on de-escaping
-    * Write properly escaped json on toString() call.
-    * Check for work on general spec compliance
-    * Write tests.
-* More meaningful error messages
-* More quality of life functionality
-
+    * [x] Convert UTF16 surrogate pairs to UTF8 on de-escaping
+    * [ ] Write properly escaped json on toString() call.
+    * [ ] Check for work on general spec compliance
+        * [x] Deescape key strings
+        * [ ] Throw error on invalid unicode
+    * [ ] Write tests. 
+        * [ ] Find proper library / framework for unit testing
+* [x] More meaningful error messages
+* [ ] More quality of life functionality
+    * [ ] Datatype specific properties
 
 ## Parsing stuff
 
