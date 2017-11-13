@@ -4,7 +4,6 @@
 	file, You can obtain one at http://mozilla.org/MPL/2.0/. 
 '/
 '#define fbJSON_debug
-'#define fbJSON_debug
 
 sub AssertEqual overload (expected as integer, result as integer) 
 	if ( expected <> result ) then
@@ -22,7 +21,19 @@ end sub
 
 #include once "fbJson.bi"
 
-dim as jsonItem item 
+dim as jsonItem item
+
+Print "#0 - Test special keys"
+
+item = jsonItem("{""\u2665"":""Foo""}")
+assertequal("♥", item[0].key)
+item = jsonItem("{""\\uD83E\uDDC0"":""Foo""}")
+assertequal("🧀", item[0].key)
+
+item = jsonItem("{"""":""Foo""}")
+assertequal("", item[0].key)
+
+print "[OK]"
 
 print "Test empty object"
 item = jsonItem("{}")

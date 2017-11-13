@@ -416,6 +416,11 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				case keyToken
 					if child = 0  then child = new JsonItem()
 					fastmid (child->_key, jsonString, valuestart,  i - valueStart)
+					if ( instr(child->_key, "\") <> 0 ) then 
+						if ( DeEscapeString(child->_key) = false ) then
+							child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
+						end if
+					end if
 					state = keyTokenClosed
 				case else
 				end select
