@@ -11,6 +11,28 @@ namespace fbJsonInternal
 
 const replacementChar as string  = "�"
 
+function validateCodepoint(byref codepoint as byte) as boolean
+	' Anything below 191 *should* be valid.
+	if (codepoint < 191) then
+		return true
+	end if
+	
+	select case as const codepoint
+		' These codepoints are straight up invalid no matter what:
+		case 192, 193, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255:
+			return false
+		case 237
+			' TODO Validate against surrogate pairs, which are invalid in UTF-8.
+			return true
+		case 224, 240, 244
+			' TODO: Validate against overlong encoding
+			return true
+		case else
+			' TODO: Validate against "unexpected continuation"
+	end select
+	return true
+end function
+
 ' Allows us to interact directly with the FB-Internal string-structure.
 ' Don't use it, unless you know what you're doing.
 type fbString
@@ -18,6 +40,16 @@ type fbString
     dim as integer length
     dim as integer size
 end type
+
+sub FastSpace(byref destination as string, length as uinteger)
+	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
+	if ( destinationPtr->size <> length ) then 
+		deallocate destinationptr->stringdata
+		destinationPtr->stringData = allocate( length)
+	end if
+    memset(destinationPtr->stringData, 32, length)
+    destinationPtr->length = length
+end sub
 
 sub FastLeft(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
@@ -36,11 +68,19 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
 end sub
 
+function isInString(byref target as string, byref query as byte) as boolean
+	dim as fbstring ptr targetPtr = cast(fbstring ptr, @target)
+	if ( targetPtr->size = 0 ) then return false
+	
+	return memchr( targetPtr->stringData, query, targetPtr->size ) <> 0
+end function
+
+
 function EscapedToUtf8(byref codepoint as long) as string
 	dim result as string
 	
 	if codePoint <= &h7F then
-		result = space(1)
+		fastSpace(result, 1)
 		result[0] = codePoint
 		return result
 	endif
@@ -51,20 +91,20 @@ function EscapedToUtf8(byref codepoint as long) as string
 	end if
 	
 	if (codepoint <= &h7FF) then
-		result = space(2)
+		fastSpace(result, 2)
 		result[0] = &hC0 OR (codepoint SHR 6) AND &h1F 
 		result[1] = &h80 OR codepoint AND &h3F
 		return result
 	end if
 	if (codepoint <= &hFFFF) then
-		result = space(3)
+		fastSpace(result, 3)
         result[0] = &hE0 OR codepoint SHR 12 AND &hF
         result[1] = &h80 OR codepoint SHR 6 AND &h3F
         result[2] = &h80 OR codepoint AND &h3F
         return result
     end if
 	
-	result = space(4)
+	fastSpace(result, 4)
 	result[0] = &hF0 OR codepoint SHR 18 AND &h7
 	result[1] = &h80 OR codepoint SHR 12 AND &h3F
 	result[2] = &h80 OR codepoint SHR 6 AND &h3F
@@ -137,7 +177,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 
 					end if
 					
-					if (glyph = "") then
+					if (glyph = "" ) then
 						return false
 					end if
 					

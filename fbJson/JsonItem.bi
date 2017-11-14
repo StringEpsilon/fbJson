@@ -404,7 +404,14 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	end if
 		
 	' Skipping the opening and closing brackets makes things a bit easier.
-	for i = parseStart to parseEnd		
+	for i = parseStart to parseEnd
+	
+		if ( validateCodepoint(jsonstring[i]) = false ) then
+			currentItem->_datatype = malformed
+			currentItem->_error = "Invalid codepoint."
+			return
+		end if
+	
 		' Because strings can contain json tokens, we handle them seperately:
 		if ( jsonString[i] = jsonToken.Quote AndAlso (I = 0 orElse jsonString[i-1] <> jsonToken.BackSlash) ) then
 			isStringOpen = not(isStringOpen)
@@ -416,7 +423,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 				case keyToken
 					if child = 0  then child = new JsonItem()
 					fastmid (child->_key, jsonString, valuestart,  i - valueStart)
-					if ( instr(child->_key, "\") <> 0 ) then 
+					if ( isInString(child->_key, jsonToken.backslash) <> 0 ) then 
 						if ( DeEscapeString(child->_key) = false ) then
 							child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
 						end if
@@ -519,7 +526,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		else
 			' If we are in a string IN a value, we add up the length.
 			if ( state = valueToken ) then
-				valueLength +=1			
+				valueLength +=1
 			end if
 		end if	
 		
@@ -560,7 +567,7 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					if ( jsonstring[valueStart+valueLength-1] ) then
 						FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 						child->_dataType = jsonDataType.jsonString
-						if ( instr(child->_value, "\") <> 0 ) then 
+						if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
 							if ( DeEscapeString(child->_value) = false ) then
 								FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 								child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
