@@ -25,6 +25,9 @@ dim as jsonItem item
 
 Print "#0 - Test special keys"
 
+item = jsonItem(chr(255) + "{"""": true}")
+assertEqual(malformed, item.Datatype)
+
 item = jsonItem("{""\u2665"":""Foo""}")
 assertequal("♥", item[0].key)
 item = jsonItem("{""\\uD83E\uDDC0"":""Foo""}")
@@ -312,4 +315,3 @@ item = jsonItem("[""\")
 assertEqual(malformed, item.Datatype)
 
 print "[OK]"
-

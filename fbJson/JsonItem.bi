@@ -369,6 +369,8 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 	dim as integer valueStart
 	dim as parserState state
 	dim as boolean isStringOpen
+	dim as boolean encounteredBacklash = false
+	dim as byte unicodeSequence
 	
 	' To handle trimming, we use these:
 	dim as integer valueLength = 0
@@ -405,7 +407,31 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 		
 	' Skipping the opening and closing brackets makes things a bit easier.
 	for i = parseStart to parseEnd
-	
+		if ( jsonstring[i] AND &b10000000 ) then
+			unicodeSequence -= 1
+			if (unicodeSequence < 0 ) then
+				currentItem->_datatype = malformed
+				currentItem->_error = "Invalid codepoint."
+				return
+			end if
+		else
+			if (unicodeSequence > 0) then
+				currentItem->_datatype = malformed
+				currentItem->_error = "Invalid codepoint."
+				return
+			end if
+			select case as const jsonstring[i] shr 4 
+				case 12, 13
+					unicodeSequence = 2
+				case 14
+					unicodeSequence = 3
+				case 15
+					unicodeSequence = 4
+				case else
+					unicodeSequence = 0
+			end select
+		end if
+
 		if ( validateCodepoint(jsonstring[i]) = false ) then
 			currentItem->_datatype = malformed
 			currentItem->_error = "Invalid codepoint."
@@ -586,7 +612,6 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 						case "true", "false"
 							child->_dataType = jsonBool
 						case else
-							FastMid(child->_value, jsonString, valuestart, valueLength)
 							' Invalid value or missing quotation marks							
 							child->setErrorMessage(invalidValue, jsonstring, i)
 					end select
@@ -594,11 +619,12 @@ sub JsonItem.Parse(jsonString as byte ptr, endIndex as integer)
 					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
 					if ( lastCharacter >= 48 and lastCharacter <= 57) then
 						FastMid(child->_value, jsonString, valuestart, valueLength)
-						
-						child->_value = str(cdbl(child->_value))
+						dim doubleValue as string = str(cdbl(child->_value))
 						child->_dataType = jsonNumber
-						if ( child->_value = "0" andAlso child->_value <> "0" ) then
+						if ( doubleValue = "0" andAlso child->_value <> "0" ) then
 							child->setErrorMessage(invalidNumber, jsonstring, i)
+						else
+							child->_value = doubleValue
 						end if
 					else
 						child->setErrorMessage(invalidValue, jsonstring, i)
@@ -704,17 +730,18 @@ function JsonItem.ToString(level as integer = 0) as string
 	' TODO: Clean up this mess.
 	
 	if this.datatype = jsonObject  then
-		result = "{"
+		result = "{" + chr(10)
 	elseif ( this.datatype = jsonArray ) then
-		result = "["
+		result = "[" + chr(10)
 	end if
 		
 	for i as integer = 0 to this._count 
+		result += string((level +1) * 2, " ") 
 		if ( this.datatype = jsonObject ) then
 			result += """" & this[i]._key & """ : " 
 		end if
 		
-		if ( this[i].Count >= 0 ) then
+		if ( this[i].Count >= 1 ) then
 			result += this[i].toString(level+1)
 		else			
 			if ( this[i].datatype = jsonString) then
@@ -728,17 +755,18 @@ function JsonItem.ToString(level as integer = 0) as string
 			end if
 		end if
 		if ( i < this.Count - 1 ) then
-			result += ","
+			result += ","+ chr(10)
 		else
 			level -= 1
+			result += chr(10)
 		end if
 		
 	next
 	
 	if this.datatype = jsonObject  then
-		result += "}"
+		result += string((level +1) * 2, " ")  + "}"
 	elseif ( this.datatype = jsonArray ) then
-		result += "]"
+		result +=  string((level +1) * 2, " ") +"]"
 	end if
 	
 	return result

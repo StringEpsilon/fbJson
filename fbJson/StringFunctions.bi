@@ -11,7 +11,7 @@ namespace fbJsonInternal
 
 const replacementChar as string  = "�"
 
-function validateCodepoint(byref codepoint as byte) as boolean
+function validateCodepoint(byref codepoint as ubyte) as boolean
 	' Anything below 191 *should* be valid.
 	if (codepoint < 191) then
 		return true
@@ -76,7 +76,7 @@ function isInString(byref target as string, byref query as byte) as boolean
 end function
 
 
-function EscapedToUtf8(byref codepoint as long) as string
+function LongToUft8(byref codepoint as long) as string
 	dim result as string
 	
 	if codePoint <= &h7F then
@@ -136,6 +136,21 @@ function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
 	return result
 end function
 
+function areEqual(byref stringA as string, byref stringB as string) as boolean
+	dim as fbString ptr A = cast(fbString ptr, @stringA)
+	dim as fbString ptr B = cast(fbString ptr, @stringB)
+
+	if (A->length <> B->length) then
+		return false
+	end if
+	
+	if (A = B) then
+		return true
+	end if
+	
+	return strcmp(A->stringData, B->stringData) = 0
+end function
+
 function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
 
@@ -172,7 +187,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 							return false
 						end if
 					elseif (codepoint > 0) then
-						glyph = EscapedToUtf8(codepoint)
+						glyph = LongToUft8(codepoint)
 						pad = 6 - len(glyph)
 
 					end if
