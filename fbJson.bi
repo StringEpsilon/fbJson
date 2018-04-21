@@ -4,4 +4,4 @@
 	file, You can obtain one at http://mozilla.org/MPL/2.0/. 
 '/
 
-#include once "fbJson/JsonDocument.bi"
+#include once "fbJson/JsonItem.bas"

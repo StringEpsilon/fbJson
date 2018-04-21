@@ -13,10 +13,10 @@ fbJson is licensed under the MPL 2.0 from version 0.14.1 onwards.
 * Compliance with the JSON specification
     * [x] Convert UTF16 surrogate pairs to UTF8 on de-escaping
     * [ ] Write properly escaped json on toString() call.
-    * [ ] Check for work on general spec compliance
+    * [ ] Work on general spec compliance
         * [x] Deescape key strings
-        * [ ] Throw error on invalid unicode
-    * [ ] Write tests. 
+        * [x] Throw error on invalid unicode
+    * [ ] Write tests.
         * [ ] Find proper library / framework for unit testing
 * [x] More meaningful error messages
 * [ ] More quality of life functionality
@@ -101,12 +101,3 @@ Returns true if the item is an object that contains the given key.
 `jsonItem.ToString() as string` 
 Creates a string representation of the Item and all it's children.
 
-#### JsonDocument
-
-Inherits from JsonItem
-
-`jsonDocument.ReadFile(string) as boolean`
-Loads the JSON-file from the given path. Returns true if successful.
-
-`jsonDocument.WriteFile(string [, boolean = true]) as boolean`
-Writes the content of the item to a give path. Returns true if successful. Second parameter turns overwriting files on or off (default is on).
