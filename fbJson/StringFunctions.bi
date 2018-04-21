@@ -9,7 +9,25 @@
 
 namespace fbJsonInternal
 
+' Allows us to interact directly with the FB-Internal string-structure.
+' Don't use it, unless you know what you're doing.
+type fbString
+    dim as byte ptr stringData
+    dim as integer length
+    dim as integer size
+end type
+
 const replacementChar as string  = "�"
+
+declare function validateCodepoint(byref codepoint as ubyte) as boolean
+declare sub FastSpace(byref destination as string, length as uinteger)
+declare sub FastLeft(byref destination as string, length as uinteger)
+declare sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
+declare function isInString(byref target as string, byref query as byte) as boolean
+declare function LongToUft8(byref codepoint as long) as string
+declare function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
+declare function areEqual(byref stringA as string, byref stringB as string) as boolean
+declare function DeEscapeString(byref escapedString as string) as boolean
 
 function validateCodepoint(byref codepoint as ubyte) as boolean
 	' Anything below 191 *should* be valid.
@@ -32,14 +50,6 @@ function validateCodepoint(byref codepoint as ubyte) as boolean
 	end select
 	return true
 end function
-
-' Allows us to interact directly with the FB-Internal string-structure.
-' Don't use it, unless you know what you're doing.
-type fbString
-    dim as byte ptr stringData
-    dim as integer length
-    dim as integer size
-end type
 
 sub FastSpace(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
@@ -74,7 +84,6 @@ function isInString(byref target as string, byref query as byte) as boolean
 	
 	return memchr( targetPtr->stringData, query, targetPtr->size ) <> 0
 end function
-
 
 function LongToUft8(byref codepoint as long) as string
 	dim result as string
@@ -112,7 +121,6 @@ function LongToUft8(byref codepoint as long) as string
     
 	return result
 end function
-
 
 function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
 	dim as long codepoint = 0
