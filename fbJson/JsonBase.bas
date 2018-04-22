@@ -120,7 +120,11 @@ function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
 		this._children = reallocate(this._children, sizeof(JsonBase ptr) * (this._count+1))
 	end if
 	
-	this._children[this._count] = newChild
+	if this._children = 0 then
+		this.setMalformed()
+		return false
+	end if
+	
 	if ( newChild->_datatype = malformed ) then
 		this.SetMalformed()
 	end if
@@ -482,5 +486,6 @@ end sub
 
 sub JsonBase.Parse( inputString as string)
 	this.destructor()
+	this.constructor()
 	this.Parse( cast (byte ptr, strptr(inputstring)), len(inputString)-1)
 end sub
