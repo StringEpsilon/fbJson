@@ -39,7 +39,7 @@ end operator
 
 operator JsonItem.[](index as integer) byref as JsonItem
 	if ( index <= this._count ) then
-		return  *cast(JsonItem ptr,this._children[index])
+		return *cast(JsonItem ptr,this._children[index])
 	end if
 	
 	#ifdef fbJSON_debug
@@ -228,40 +228,39 @@ function JsonItem.ToString(level as integer = 0) as string
 	dim as string result
 	
 	' TODO: Clean up this mess.
-	
-	if this.datatype = jsonObject  then
-		result = "{" + chr(10)
+		
+	if ( this.datatype = jsonObject ) then
+		result = "{"
 	elseif ( this.datatype = jsonArray ) then
-		result = "[" + chr(10)
+		result = "["
+	elseif ( level = 0 ) then
+		return this._value
 	end if
 		
 	for i as integer = 0 to this._count 
-		result += string((level +1) * 2, " ") 
+		result += chr(10) + string((level +1) * 2, " ") 
 		if ( this.datatype = jsonObject ) then
 			result += """" & this[i]._key & """ : " 
 		end if
 		
 		if ( this[i].Count >= 1 ) then
 			result += this[i].toString(level+1)
-		else			
+		else
 			if ( this[i].datatype = jsonString) then
-				result += """"
-			end if
-			
-			result += this[i]._value
-			
-			if ( this[i].datatype = jsonString) then
-				result += """"
+				result += """" & this[i]._value & """"
+			else
+				result += this[i]._value
 			end if
 		end if
 		if ( i < this.Count - 1 ) then
-			result += ","+ chr(10)
+			result += ","
 		else
 			level -= 1
 			result += chr(10)
 		end if
 		
 	next
+	
 	
 	if this.datatype = jsonObject  then
 		result += string((level +1) * 2, " ")  + "}"
