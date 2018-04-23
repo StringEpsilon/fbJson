@@ -82,7 +82,7 @@ operator JsonBase.LET(copy as JsonBase)
 		this._children = callocate(sizeof(JsonBase ptr) * (copy._count+1))
 		for i as integer = 0 to copy._count
 			this._children[i] = callocate(sizeOf(JsonBase))
-			*this._children[i] = *copy._children[i])
+			*this._children[i] = *copy._children[i]
 		next
 	end if
 end operator
@@ -157,6 +157,11 @@ end sub
 
 sub JsonBase.Parse(jsonString as byte ptr, endIndex as integer) 
 	using fbJsonInternal
+	if (endIndex < 0) then
+		this.setMalformed()
+		return
+	end if
+	
 	
 	' Objects we will work with:
 	dim currentItem as JsonBase ptr = @this
@@ -206,6 +211,8 @@ sub JsonBase.Parse(jsonString as byte ptr, endIndex as integer)
 		
 	' Skipping the opening and closing brackets makes things a bit easier.
 	for i = parseStart to parseEnd
+	
+		' UTF-8 length validation:
 		if ( jsonstring[i] AND &b10000000 ) then
 			unicodeSequence -= 1
 			if (unicodeSequence < 0 ) then
@@ -489,5 +496,6 @@ end sub
 sub JsonBase.Parse( inputString as string)
 	this.destructor()
 	this.constructor()
+	
 	this.Parse( cast (byte ptr, strptr(inputstring)), len(inputString)-1)
 end sub

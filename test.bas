@@ -314,4 +314,7 @@ assertEqual(jsonString, item.Datatype)
 item = jsonItem("[""\")
 assertEqual(malformed, item.Datatype)
 
+item = jsonItem("")
+assertEqual(malformed, item.Datatype)
+
 print "[OK]"
