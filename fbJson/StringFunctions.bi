@@ -163,7 +163,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
 
 	dim as uinteger trimSize = 0	
-	for i as uinteger = 0 to length +1
+	for i as uinteger = 0 to length 
 		' 92 is backslash
 		if ( escapedString[i] = 92 ) then
 			if ( i < length ) then
