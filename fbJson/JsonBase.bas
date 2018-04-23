@@ -22,6 +22,7 @@ sub JsonBase.setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring a
 		end if
 		linePosition +=1
 	next
+	
 	select case as const errorCode
 		case arrayNotClosed:
 			this._error = "Array was not properly closed. Expected ']' at position "& linePosition &" on line "& lineNumber &", found '"& chr(jsonstring[position]) &"' instead."
@@ -155,10 +156,11 @@ sub JsonBase.SetMalformed()
 	end if
 end sub
 
-sub JsonBase.Parse(jsonString as byte ptr, endIndex as integer) 
+sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer) 
 	using fbJsonInternal
 	if (endIndex < 0) then
 		this.setMalformed()
+		this._error = "No data!"
 		return
 	end if
 	
@@ -186,6 +188,7 @@ sub JsonBase.Parse(jsonString as byte ptr, endIndex as integer)
 			state = parserState.none
 		else
 			currentItem->setErrorMessage(objectNotClosed, jsonstring, i)
+			?" asdj"
 			return
 		end if
 	elseif ( jsonstring[i] = jsonToken.SquareOpen ) then
@@ -203,44 +206,42 @@ sub JsonBase.Parse(jsonString as byte ptr, endIndex as integer)
 		parseEnd = endIndex
 		state = valueToken
 	end if
-	
-	' Abort early:
-	if ( endIndex <= 1) then
-		return 
-	end if
-		
+			
 	' Skipping the opening and closing brackets makes things a bit easier.
 	for i = parseStart to parseEnd
 	
 		' UTF-8 length validation:
-		if ( jsonstring[i] AND &b10000000 ) then
+		if ( jsonstring[i] SHR 6 = &b10 ) then
 			unicodeSequence -= 1
 			if (unicodeSequence < 0 ) then
 				currentItem->_datatype = malformed
-				currentItem->_error = "Invalid codepoint."
+				currentItem->_error = "Invalid codepoint. Unexpected continuation"
 				return
 			end if
 		else
+			
 			if (unicodeSequence > 0) then
 				currentItem->_datatype = malformed
-				currentItem->_error = "Invalid codepoint."
+				currentItem->_error = "Invalid codepoint. Continuation expected"
 				return
 			end if
-			select case as const jsonstring[i] shr 4 
+			select case as const jsonString[i] shr 4 
 				case 12, 13
-					unicodeSequence = 2
+					unicodeSequence = 1
 				case 14
-					unicodeSequence = 3
+					unicodeSequence = 2
 				case 15
-					unicodeSequence = 4
+					unicodeSequence = 3
 				case else
 					unicodeSequence = 0
 			end select
+			
 		end if
+
 
 		if ( validateCodepoint(jsonstring[i]) = false ) then
 			currentItem->_datatype = malformed
-			currentItem->_error = "Invalid codepoint."
+			currentItem->_error = "Invalid codepoint. validateCodepoint failed"
 			return
 		end if
 	
@@ -499,3 +500,7 @@ sub JsonBase.Parse( inputString as string)
 	
 	this.Parse( cast (byte ptr, strptr(inputstring)), len(inputString)-1)
 end sub
+
+function JsonBase.getError() as string
+	return this._error
+end function

@@ -318,3 +318,42 @@ item = jsonItem("")
 assertEqual(malformed, item.Datatype)
 
 print "[OK]"
+
+dim as string invalidUTF8 (0 to 6) = { _
+	!"\195\28", _
+	!"\160\161", _
+	!"\226\28\161", _
+	!"\226\82\28",   _ 
+	!"\240\28\140\188", _
+	!"\240\90\28\188", _
+	!"\240\28\140\28" _
+}
+
+
+for i as integer = 0 to 6
+	print "Testing invalid strings #"& i
+	item = jsonItem(""""& invalidUTF8(i) & """")
+	assertEqual(malformed, item.Datatype)
+next
+
+dim as string validUTF8 (0 to 4) = { _
+	!"\195\177", _
+	!"\226\130\161", _
+	!"\240\144\140\188"_
+}
+
+
+
+for i as integer = 0 to 4
+	print "Testing valid string #"& i
+	item = jsonItem(""""& validUTF8(i) & """")
+	? item.getError()
+	assertEqual(jsonString, item.Datatype)
+next
+
+
+
+
+    
+
+

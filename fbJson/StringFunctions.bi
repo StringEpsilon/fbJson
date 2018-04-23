@@ -42,11 +42,9 @@ function validateCodepoint(byref codepoint as ubyte) as boolean
 		case 237
 			' TODO Validate against surrogate pairs, which are invalid in UTF-8.
 			return true
-		case 224, 240, 244
-			' TODO: Validate against overlong encoding
-			return true
 		case else
-			' TODO: Validate against "unexpected continuation"
+			' Validation of invalid continuation handled in parser.
+			return true
 	end select
 	return true
 end function

@@ -17,7 +17,7 @@ type JsonBase extends object
 		_key as string
 		_count as integer = -1
 		
-		declare sub Parse(jsonString as byte ptr, endIndex as integer)
+		declare sub Parse(jsonString as ubyte ptr, endIndex as integer)
 		declare sub SetMalformed()
 		declare function AppendChild(newChild as JsonBase ptr) as boolean
 		declare sub setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger)
@@ -38,4 +38,6 @@ type JsonBase extends object
 		declare sub Parse(jsonString as string)
 			
 		declare function ContainsKey(key as string) as boolean
+		
+		declare function getError() as string
 end type
