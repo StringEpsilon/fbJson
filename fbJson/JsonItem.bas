@@ -9,12 +9,12 @@
 #include once "StringFunctions.bi"
 
 constructor JsonItem()
-	base.constructor()
+	base()
 	' Nothing to do
 end constructor
 
 constructor JsonItem(byref jsonString as string)
-	base.constructor(jsonstring)
+	base(jsonstring)
 end constructor
 
 destructor JsonItem()

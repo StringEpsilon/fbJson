@@ -82,7 +82,7 @@ operator JsonBase.LET(copy as JsonBase)
 		this._children = callocate(sizeof(JsonBase ptr) * (copy._count+1))
 		for i as integer = 0 to copy._count
 			this._children[i] = callocate(sizeOf(JsonBase))
-			*this._children[i] = *copy._children[i]
+			*this._children[i] = *copy._children[i])
 		next
 	end if
 end operator
@@ -115,7 +115,7 @@ function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
 	this._count += 1
 	
 	if this._children = 0 then
-		this._children = allocate(sizeof(JsonBase ptr) * (this._count+1))
+		this._children = callocate(sizeof(JsonBase ptr) * (this._count+1))
 	else
 		this._children = reallocate(this._children, sizeof(JsonBase ptr) * (this._count+1))
 	end if
@@ -124,6 +124,8 @@ function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
 		this.setMalformed()
 		return false
 	end if
+	
+	this._children[this._count] = newChild
 	
 	if ( newChild->_datatype = malformed ) then
 		this.SetMalformed()
@@ -415,7 +417,7 @@ sub JsonBase.Parse(jsonString as byte ptr, endIndex as integer)
 				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
 					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
 					if ( lastCharacter >= 48 and lastCharacter <= 57) then
-						FastMid(child->_value, jsonString, valuestart, valueLength)
+						FastMid(child->_value, jsonString, valuestart, valueLength+1)
 						dim doubleValue as string = str(cdbl(child->_value))
 						child->_dataType = jsonNumber
 						if ( doubleValue = "0" andAlso child->_value <> "0" ) then

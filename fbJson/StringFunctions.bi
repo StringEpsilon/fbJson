@@ -74,7 +74,7 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
 	destinationPtr->length = length
 	destinationPtr->size = length
-	destinationPtr->stringData = allocate(destinationPtr->size)
+	destinationPtr->stringData = allocate(length)
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
 end sub
 
