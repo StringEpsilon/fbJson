@@ -5,6 +5,9 @@
 '/
 
 #include once "JsonBase.bi"
+#ifndef fbJson_HeaderLib
+	#inclib "fbJson"
+#endif
 
 type JsonItem extends JsonBase
 	public:

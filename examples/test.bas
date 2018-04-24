@@ -3,7 +3,7 @@
 	License, v. 2.0. If a copy of the MPL was not distributed with this
 	file, You can obtain one at http://mozilla.org/MPL/2.0/. 
 '/
-
+0
 sub AssertEqual overload (expected as integer, result as integer) 
 	if ( expected <> result ) then
 		print "Assert failed: Expected "& expected &" but got: "& result
@@ -18,7 +18,7 @@ sub AssertEqual(expected as string, result as string)
 	end if
 end sub
 
-#include once "fbJson.bi"
+#include once "../fbJson.bas"
 
 dim as jsonItem item
 
