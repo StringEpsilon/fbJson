@@ -177,6 +177,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 	dim as parserState state
 	dim as boolean isStringOpen
 	dim as byte unicodeSequence
+	dim as boolean isEscaped = false
 	
 	' To handle trimming, we use these:
 	dim as integer valueLength = 0
@@ -240,8 +241,9 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			goto cleanup
 		end if
 	
+		
 		' Because strings can contain json tokens, we handle them seperately:
-		if ( jsonString[i] = jsonToken.Quote AndAlso (i = 0 orElse jsonString[i-1] <> jsonToken.BackSlash) ) then
+		if ( jsonString[i] = jsonToken.Quote AndAlso isEscaped = false) then
 			isStringOpen = not(isStringOpen)
 			if ( currentItem->_datatype = jsonObject ) then
 				select case as const state
@@ -352,6 +354,11 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					end if
 			end select
 		else
+			if (jsonString[i] = 92 and isEscaped = false) then
+				isEscaped = true
+			else
+				isEscaped = false
+			end if
 			' If we are in a string IN a value, we add up the length.
 			if ( state = valueToken ) then
 				valueLength +=1

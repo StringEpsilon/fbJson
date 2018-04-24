@@ -3,7 +3,6 @@
 	License, v. 2.0. If a copy of the MPL was not distributed with this
 	file, You can obtain one at http://mozilla.org/MPL/2.0/. 
 '/
-'#define fbJSON_debug
 
 sub AssertEqual overload (expected as integer, result as integer) 
 	if ( expected <> result ) then
@@ -30,11 +29,37 @@ assertEqual(malformed, item.Datatype)
 
 item = jsonItem("{""\u2665"":""Foo""}")
 assertequal("♥", item[0].key)
-item = jsonItem("{""\\uD83E\uDDC0"":""Foo""}")
+item = jsonItem("{""\uD83E\uDDC0"":""Foo""}")
 assertequal("🧀", item[0].key)
 
 item = jsonItem("{"""":""Foo""}")
 assertequal("", item[0].key)
+
+item = jsonItem("{""\\c"":""Foo""}")
+assertequal("\c", item[0].key)
+
+
+print "[OK]"
+
+print "Test escaping."
+
+item = jsonItem("{""\\c\\"":""\\foo\\bar\/baz\u2665""}")
+assertequal("\c\", item[0].key)
+assertequal("\foo\bar/baz♥", item[0].value)
+
+item = jsonItem("""\""""")
+assertequal("""", item.value)
+
+item = jsonItem("""\\\\\""""")
+assertequal("\\""", item.value)
+
+item = jsonItem("""\\""")
+assertequal("\", item.value)
+
+item = jsonItem("""\\\\\\""")
+assertequal("\\\", item.value)
+item = jsonItem("""\\\\\u2665\\""")
+assertequal("\\♥\", item.value)
 
 print "[OK]"
 
@@ -341,8 +366,6 @@ dim as string validUTF8 (0 to 4) = { _
 	!"\226\130\161", _
 	!"\240\144\140\188"_
 }
-
-
 
 for i as integer = 0 to 4
 	print "Testing valid string #"& i

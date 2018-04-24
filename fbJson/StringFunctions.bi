@@ -163,9 +163,12 @@ function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
 
 	dim as uinteger trimSize = 0	
+	dim as boolean isEscaped
 	for i as uinteger = 0 to length 
 		' 92 is backslash
-		if ( escapedString[i] = 92 andAlso (i > 0 and escapedString[i-1] <> 92) ) then
+		
+		if ( escapedString[i] = 92 and isEscaped = false) then
+			isEscaped = true
 			if ( i < length ) then
 				select case as const escapedString[i+1]
 				case 34, 92, 47: ' " \ /
@@ -197,7 +200,6 @@ function DeEscapeString(byref escapedString as string) as boolean
 					elseif (codepoint > 0) then
 						glyph = LongToUft8(codepoint)
 						pad = 6 - len(glyph)
-
 					end if
 					
 					if (glyph = "" ) then
@@ -215,6 +217,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 				trimSize+=1
 			end if
 		elseif ( trimSize > 0 ) then
+			isEscaped = false
 			escapedString[i-trimsize] = escapedString[i]
 		end if
 	next
