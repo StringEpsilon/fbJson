@@ -3,7 +3,7 @@
 	License, v. 2.0. If a copy of the MPL was not distributed with this
 	file, You can obtain one at http://mozilla.org/MPL/2.0/. 
 '/
-0
+
 sub AssertEqual overload (expected as integer, result as integer) 
 	if ( expected <> result ) then
 		print "Assert failed: Expected "& expected &" but got: "& result
@@ -370,7 +370,6 @@ dim as string validUTF8 (0 to 4) = { _
 for i as integer = 0 to 4
 	print "Testing valid string #"& i
 	item = jsonItem(""""& validUTF8(i) & """")
-	? item.getError()
 	assertEqual(jsonString, item.Datatype)
 next
 

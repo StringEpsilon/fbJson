@@ -227,16 +227,20 @@ function DeEscapeString(byref escapedString as string) as boolean
 	return true
 end function
 
-function isValidDouble(value as string) as boolean
+function isValidDouble(byref value as string) as boolean
 	' Note to reader: 
 	' This function is strictly for validation as far as the IETF rfc7159 is concerned.
 	' This might be more restrictive than you need it to be outside JSON use.
 	
 	dim as byte comma, exponent, sign
+	if (value = "0") then
+		return true
+	end if
+	
 	for i as integer = 0 to len(value)-1
 		select case as const value[i]
 			case 48: ' 0. No leading zeroes allowed.
-				if (i = 0) then
+				if (i = 0 and len(value) > 1) then
 					return false
 				end if
 			case 49,50,51,52,53,54,55,56,57 ' 1 - 9
@@ -260,7 +264,8 @@ function isValidDouble(value as string) as boolean
 				return false
 		end select
 	next
-	return cdbl(value) <> 0 or value = "0"
+	value = str(cdbl(value))
+	return value <> "0"
 end function
 
 end namespace

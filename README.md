@@ -18,7 +18,6 @@ fbJson is licensed under the MPL 2.0 from version 0.14.1 onwards.
         * [x] Throw error on invalid unicode
 * [x] More meaningful error messages
 
-
 Past 1.0 / nice to have:
 
 * [ ] Write tests.
@@ -83,15 +82,20 @@ Gets or sets the value of the item (as string). Also sets the datatype. Returns 
 
 `jsonItem.AddItem(string, jsonItem) as boolean` 
 Adds an item with a key (only on jsonObjects).
+If the item is of type null, it's converted into an object.
 
 `jsonItem.AddItem(string, string) as boolean` 
 Adds a value with a key (only on jsonObjects).
+If the item is of type null, it's converted into an object.
 
 `jsonItem.AddItem(string) as boolean` 
 Adds an item (only on jsonArrays). Returns true if successful.
+If the item is of type null, it's converted into an array.
 
 `jsonItem.AddItem(string) as boolean` 
 Adds a value (only on jsonArrays). Returns true if successful.
+If the item is of type null, it's converted into an array.
+
 
 `jsonItem.RemoveItem(string) as boolean` 
 Removes the child with the given key. Returns true if successful.

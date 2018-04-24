@@ -243,7 +243,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 	
 		
 		' Because strings can contain json tokens, we handle them seperately:
-		if ( jsonString[i] = jsonToken.Quote AndAlso isEscaped = false) then
+		if ( jsonString[i] = jsonToken.Quote andAlso isEscaped = false) then
 			isStringOpen = not(isStringOpen)
 			if ( currentItem->_datatype = jsonObject ) then
 				select case as const state
@@ -262,6 +262,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				case else
 				end select
 			end if
+			
 		end if
 		
 		' When not in a string, we can handle the complicated suff:
@@ -363,6 +364,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			if ( state = valueToken ) then
 				valueLength +=1
 			end if
+		
 		end if	
 		
 		if ( i = parseEnd) then
@@ -394,7 +396,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 		
 		if (state = valueTokenClosed orElse state = nestEnd) then			
 			' because we already know how long the string we are going to parse is, we can skip if it's 0.
-			if ( valueLength <> 0 ) then
+			if ( valueLength > 0 ) then
 				if (child = 0) then child = new JsonBase()
 				' The time saved with this is miniscule, but reliably measurable.		
 				select case as const jsonstring[valuestart]
@@ -425,7 +427,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					fastMid(child->_value, jsonString, valuestart, valueLength)
 					if ( isValidDouble(child->_value) ) then
 						child->_dataType = jsonDataType.jsonNumber
-						child->_value = str(cdbl(child->_value))
 					else
 						child->setErrorMessage(invalidNumber, jsonstring, i)
 					end if
@@ -462,7 +463,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					else
 						currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
 					end if
-					return
+					goto cleanup
 				end if
 			end if
 			valueLength = 0
