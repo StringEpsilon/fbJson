@@ -498,7 +498,7 @@ end sub
 sub JsonBase.Parse( inputString as string)
 	this.destructor()
 	this.constructor()
-	
+	inputString = trim(inputString, any !" \9\10")
 	this.Parse( cast (byte ptr, strptr(inputstring)), len(inputString)-1)
 end sub
 

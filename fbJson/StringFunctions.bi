@@ -165,7 +165,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger trimSize = 0	
 	for i as uinteger = 0 to length 
 		' 92 is backslash
-		if ( escapedString[i] = 92 ) then
+		if ( escapedString[i] = 92 andAlso (i > 0 and escapedString[i-1] <> 92) ) then
 			if ( i < length ) then
 				select case as const escapedString[i+1]
 				case 34, 92, 47: ' " \ /
