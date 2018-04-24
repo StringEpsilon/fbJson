@@ -72,7 +72,9 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
 	destinationPtr->length = length
 	destinationPtr->size = length
-	destinationPtr->stringData = allocate(length)
+	destinationPtr->stringData = allocate(length +1)
+	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
+	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
 end sub
 

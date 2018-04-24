@@ -16,6 +16,7 @@ enum jsonError
 	expectedKey
 	expectedValue
 	unexpectedToken
+	invalidCodepoint
 end enum
 
 enum jsonToken
