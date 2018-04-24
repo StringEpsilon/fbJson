@@ -87,22 +87,15 @@ property JsonItem.Value( byref newValue as string)
 		else
 			this.setMalformed()
 		end if
-	case 48,49,50,51,52,53,54,55,56,57 ' 0 - 9
-		dim as byte lastCharacter = newValue[len(newValue)-1]
-		if ( lastCharacter > 57 orElse lastCharacter < 48 ) then
-			' IF the current item is already a string, we can be a little more forgiving
-			' This allows for easier manipulation of items in code 
-			' (because you don't have to include the quotes every time)
-			' This solution is of course ugly as f..., but whatever.
-			if ( this._datatype = jsonString ) then
-				this._value = newValue
-			else
-				this.setMalformed()
-			end if
-		else
-			this._dataType = jsonNumber
+	case 45, 48,49,50,51,52,53,54,55,56,57 '-, 0 - 9
+		if (isValidDouble(newValue) ) then
+			this._datatype = jsonNumber
 			this._value = str(cdbl(newValue))
-			if ( this._value = "0" andAlso newValue <> "0" ) then
+		else			
+			this._datatype = jsonString
+			this._value = newValue
+				
+			if ( DeEscapeString(this._value) = false ) then
 				this.setMalformed()
 			end if
 		end if
@@ -118,7 +111,17 @@ property JsonItem.Value( byref newValue as string)
 			' strict vs. nonstrict mode?
 			this._datatype = jsonString
 			this._value = newValue
+				
+			if ( DeEscapeString(this._value) = false ) then
+				this.setMalformed()
+			end if
 		end select
+	case else
+		this._dataType = jsonString
+		this._value = newValue
+		if ( DeEscapeString(this._value) = false ) then
+			this.setMalformed()
+		end if
 	end select
 end property
 
@@ -127,7 +130,7 @@ property JsonItem.Value() as string
 end property
 
 function JsonItem.AddItem(newKey as string, newValue as string) as boolean
-	if ( len(key) = 0 orElse this[key].datatype <> jsonNull ) then
+	if ( len(newKey) = 0 orElse this.containsKey(newKey) ) then
 		return false
 	end if
 	
@@ -145,7 +148,7 @@ function JsonItem.AddItem(newKey as string, newValue as string) as boolean
 end function
 
 function JsonItem.AddItem(newKey as string, item as JsonItem) as boolean
-	if ( len(key) = 0 orElse this.containsKey(key) <> jsonNull ) then
+	if ( len(newKey) = 0 orElse this.containsKey(newKey) ) then
 		return false
 	end if
 	
@@ -173,7 +176,8 @@ function JsonItem.AddItem(newValue as string) as boolean
 end function
 
 function JsonItem.AddItem(item as JsonItem) as boolean
-	if ( this._datatype = jsonArray ) then
+	if ( this._datatype = jsonArray or this._datatype = jsonNull ) then
+		this._datatype = jsonArray
 		dim child as JsonItem ptr = callocate(sizeof(JsonItem))
 		*child = item
 		return this.AppendChild(child) 		
@@ -228,7 +232,6 @@ function JsonItem.ToString(level as integer = 0) as string
 	dim as string result
 	
 	' TODO: Clean up this mess.
-		
 	if ( this.datatype = jsonObject ) then
 		result = "{"
 	elseif ( this.datatype = jsonArray ) then

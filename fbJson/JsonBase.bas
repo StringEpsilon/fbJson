@@ -422,18 +422,12 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 							child->setErrorMessage(invalidValue, jsonstring, i)
 					end select
 				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
-					dim as byte lastCharacter = jsonstring[valuestart+valueLength-1]
-					if ( lastCharacter >= 48 and lastCharacter <= 57) then
-						FastMid(child->_value, jsonString, valuestart, valueLength)
-						dim doubleValue as string = str(cdbl(child->_value))
-						child->_dataType = jsonNumber
-						if ( doubleValue = "0" andAlso child->_value <> "0" ) then
-							child->setErrorMessage(invalidNumber, jsonstring, i)
-						else
-							child->_value = doubleValue
-						end if
+					fastMid(child->_value, jsonString, valuestart, valueLength)
+					if ( isValidDouble(child->_value) ) then
+						child->_dataType = jsonDataType.jsonNumber
+						child->_value = str(cdbl(child->_value))
 					else
-						child->setErrorMessage(invalidValue, jsonstring, i)
+						child->setErrorMessage(invalidNumber, jsonstring, i)
 					end if
 				case jsonToken.SquareClose
 				
