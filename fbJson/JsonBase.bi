@@ -37,7 +37,7 @@ type JsonBase extends object
 		
 		declare sub Parse(jsonString as string)
 			
-		declare function ContainsKey(key as string) as boolean
+		declare function ContainsKey(byref key as string) as boolean
 		
 		declare function getError() as string
 end type

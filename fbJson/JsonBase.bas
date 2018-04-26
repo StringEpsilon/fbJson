@@ -83,7 +83,7 @@ operator JsonBase.LET(copy as JsonBase)
 	this._count = copy._count
 	
 	if ( copy._count >= 0) then
-		this._children = callocate(sizeof(JsonBase ptr) * (copy._count+1))
+		this._children = allocate(sizeof(JsonBase ptr) * (copy._count+1))
 		for i as integer = 0 to copy._count
 			this._children[i] = callocate(sizeOf(JsonBase))
 			*this._children[i] = *copy._children[i]
@@ -119,7 +119,7 @@ function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
 	this._count += 1
 	
 	if this._children = 0 then
-		this._children = callocate(sizeof(JsonBase ptr) * (this._count+1))
+		this._children = allocate(sizeof(JsonBase ptr) * (this._count+1))
 	else
 		this._children = reallocate(this._children, sizeof(JsonBase ptr) * (this._count+1))
 	end if
@@ -137,7 +137,7 @@ function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
 	return true
 end function
 
-function JsonBase.ContainsKey(newKey as string) as boolean
+function JsonBase.ContainsKey(byref newKey as string) as boolean
 	if ( this._datatype <> jsonObject ) then return false
 	
 	for i as integer = 0 to this._count
@@ -178,6 +178,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 	dim as parserState state
 	dim as boolean isStringOpen
 	dim as byte unicodeSequence
+	dim as  boolean isValidCodepoint = true
 	dim as boolean isEscaped = false
 	
 	' To handle trimming, we use these:
@@ -237,7 +238,9 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			
 		end if
 		
-		if ( validateCodepoint(jsonstring[i]) = false ) then
+		ValidateCodepoint(jsonstring[i], isValidCodepoint)
+		
+		if ( isValidCodepoint = false ) then
 			currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
 			goto cleanup
 		end if

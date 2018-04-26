@@ -19,7 +19,7 @@ end type
 
 const replacementChar as string  = "�"
 
-declare function validateCodepoint(byref codepoint as ubyte) as boolean
+'declare function validateCodepoint(byref codepoint as ubyte) as boolean
 declare sub FastSpace(byref destination as string, length as uinteger)
 declare sub FastLeft(byref destination as string, length as uinteger)
 declare sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
@@ -29,25 +29,26 @@ declare function SurrogateToUtf8(surrogateA as long, surrogateB as long) as stri
 declare function areEqual(byref stringA as string, byref stringB as string) as boolean
 declare function DeEscapeString(byref escapedString as string) as boolean
 
-function validateCodepoint(byref codepoint as ubyte) as boolean
-	' Anything below 191 *should* be valid.
+#macro ValidateCodepoint(codepoint, isValid)
 	if (codepoint < 191) then
-		return true
-	end if
+		isValid = true
+	else
 	
-	select case as const codepoint
-		' These codepoints are straight up invalid no matter what:
-		case 192, 193, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255:
-			return false
-		case 237
-			' TODO Validate against surrogate pairs, which are invalid in UTF-8.
-			return true
-		case else
-			' Validation of invalid continuation handled in parser.
-			return true
-	end select
-	return true
-end function
+		select case as const codepoint
+			' These codepoints are straight up invalid no matter what:
+			case 192, 193, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255:
+				isValid = false
+			case 237
+				' TODO Validate against surrogate pairs, which are invalid in UTF-8.
+				isValid = false
+			case else
+				' Validation of invalid continuation handled in parser.
+				isValid = true
+		end select
+	end if
+#endmacro
+
+
 
 sub FastSpace(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
@@ -65,7 +66,6 @@ sub FastCopy(byref destination as string, byref source as string)
 	if (sourcePtr->length = 0 and destinationPtr->length = 0) then return
 	if ( destinationPtr->size <> sourcePtr->length ) then 
 		deallocate destinationptr->stringdata
-		destinationPtr->stringData = allocate( sourcePtr->length)
 	end if
 	destinationPtr->length = sourcePtr->length
 	destinationPtr->size = sourcePtr->length
@@ -73,14 +73,15 @@ sub FastCopy(byref destination as string, byref source as string)
 	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
 	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
 	memcpy( destinationPtr->stringData, sourcePtr->stringData, destinationPtr->size )
+	
 end sub
 
 
 sub FastLeft(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
+	dim as any ptr oldPtr = destinationPtr->stringData
 	destinationPtr->length = IIF(length < destinationPtr->length, length, destinationPtr->length)
 	destinationPtr->size = destinationPtr->length
-	destinationPtr->stringData = reallocate(destinationPtr->stringData,destinationPtr->size)
 end sub
 
 sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
@@ -93,6 +94,7 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
 	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
+	'destinationPtr->stringData[length+1] = 0
 end sub
 
 function isInString(byref target as string, byref query as byte) as boolean
@@ -153,7 +155,8 @@ function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
 	if ( codePoint = 0 ) then
 		return replacementChar
 	end if
-	dim result as string = space(4)
+	dim result as string 
+	FastSpace(result, 4)
 	result[0] = &hF0 OR codepoint SHR 18 AND &h7
 	result[1] = &h80 OR codepoint SHR 12 AND &h3F
 	result[2] = &h80 OR codepoint SHR 6 AND &h3F
@@ -245,31 +248,50 @@ function DeEscapeString(byref escapedString as string) as boolean
 end function
 
 function isValidDouble(byref value as string) as boolean
+	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
 	' Note to reader: 
 	' This function is strictly for validation as far as the IETF rfc7159 is concerned.
 	' This might be more restrictive than you need it to be outside JSON use.
 	
-	dim as byte comma, exponent, sign
-	if (areEqual(value, "0") ) then
+	' It's also a bit nuts. Callgrind is such a fascinating thing.
+	
+	if ( valuePtr->length = 1 andAlso value = "0" ) then
 		return true
 	end if
 	
-	for i as integer = 0 to len(value)-1
+	dim as integer comma = 0, exponent = 0,  sign = 0
+	
+	' Yay for manual loop-unrolling.
+	select case as const value[0]
+		case 48: ' 0. No leading zeroes allowed.
+			if (valuePtr->length > 1) then
+				return false
+			end if
+		case 49,50,51,52,53,54,55,56,57 ' 1 - 9
+			' do nothing
+		case 101, 69: 'e, E
+			return false
+		case 46: ' .
+			return false
+		case 45: ' -
+			sign += 1
+		case else
+			return false
+	end select
+	
+	
+	for i as integer = 1 to valuePtr->length-1
 		select case as const value[i]
-			case 48: ' 0. No leading zeroes allowed.
-				if (i = 0 and len(value) > 1) then
-					return false
-				end if
-			case 49,50,51,52,53,54,55,56,57 ' 1 - 9
+			case 48, 49,50,51,52,53,54,55,56,57 ' 1 - 9
 				' do nothing
 			case 101, 69: 'e, E
 				exponent += 1
-				if (exponent > 1 or i = 0) then
+				if (exponent > 1) then
 					return false
 				end if
 			case 46: ' .
 				comma += 1
-				if (comma > 1 or i = 0) then
+				if (comma > 1) then
 					return false
 				end if
 			case 45: ' -
@@ -281,8 +303,9 @@ function isValidDouble(byref value as string) as boolean
 				return false
 		end select
 	next
+	
 	value = str(cdbl(value))
-	return value <> "0"
+	return not(valuePtr->length = 1 andAlso value = "0") 
 end function
 
 end namespace
