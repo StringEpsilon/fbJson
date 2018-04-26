@@ -53,11 +53,28 @@ sub FastSpace(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
 	if ( destinationPtr->size <> length ) then 
 		deallocate destinationptr->stringdata
-		destinationPtr->stringData = allocate( length)
+		destinationPtr->stringData = allocate(length+1)
 	end if
     memset(destinationPtr->stringData, 32, length)
     destinationPtr->length = length
 end sub
+
+sub FastCopy(byref destination as string, byref source as string)
+	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
+	dim as fbString ptr sourcePtr = cast(fbString ptr, @source)
+	if (sourcePtr->length = 0 and destinationPtr->length = 0) then return
+	if ( destinationPtr->size <> sourcePtr->length ) then 
+		deallocate destinationptr->stringdata
+		destinationPtr->stringData = allocate( sourcePtr->length)
+	end if
+	destinationPtr->length = sourcePtr->length
+	destinationPtr->size = sourcePtr->length
+	destinationPtr->stringData = allocate(sourcePtr->length+1)
+	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
+	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
+	memcpy( destinationPtr->stringData, sourcePtr->stringData, destinationPtr->size )
+end sub
+
 
 sub FastLeft(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
@@ -202,7 +219,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 						pad = 6 - len(glyph)
 					end if
 					
-					if (glyph = "" ) then
+					if (len(glyph) = 0 ) then
 						return false
 					end if
 					
@@ -233,7 +250,7 @@ function isValidDouble(byref value as string) as boolean
 	' This might be more restrictive than you need it to be outside JSON use.
 	
 	dim as byte comma, exponent, sign
-	if (value = "0") then
+	if (areEqual(value, "0") ) then
 		return true
 	end if
 	

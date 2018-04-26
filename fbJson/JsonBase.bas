@@ -75,8 +75,9 @@ end destructor
 
 operator JsonBase.LET(copy as JsonBase)
 	this.destructor()
-	this._key = copy._key
-	this._value = copy._value
+	fbJsonInternal.FastCopy(this._key, copy._key)
+	fbJsonInternal.FastCopy(this._value, copy._value)
+	
 	this._dataType = copy._dataType
 	this._error = copy._error
 	this._count = copy._count
@@ -140,7 +141,7 @@ function JsonBase.ContainsKey(newKey as string) as boolean
 	if ( this._datatype <> jsonObject ) then return false
 	
 	for i as integer = 0 to this._count
-		if ( this._children[i]->_key = newKey ) then
+		if ( fbJsonInternal.areEqual(this._children[i]->_key, newKey ) ) then
 			return true
 		end if
 	next
@@ -241,7 +242,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			goto cleanup
 		end if
 	
-		
 		' Because strings can contain json tokens, we handle them seperately:
 		if ( jsonString[i] = jsonToken.Quote andAlso isEscaped = false) then
 			isStringOpen = not(isStringOpen)
@@ -448,7 +448,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					return
 				end if
 				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
-					this._value = child->_value
+					FastCopy(this._value, child->_value)
 					this._datatype = child->_datatype
 					this._error = child->_error
 					delete child
