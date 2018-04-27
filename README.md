@@ -2,21 +2,15 @@
 
 A small JSON library written in FreeBASIC.
 
-Latest stable is 0.17
+Latest stable is 0.18
 
 ## License
 
-fbJson is licensed under the MPL 2.0 from version 0.14.1 onwards.
+fbJson is licensed under the [MPL 2.0](https://www.mozilla.org/en-US/MPL/2.0/) from version 0.14.1 onwards.
 
 ## ToDos for 1.0
 
-* Compliance with the JSON specification
-    * [x] Convert UTF16 surrogate pairs to UTF8 on de-escaping
-    * ~~[ ] Write properly escaped json on toString() call.~~
-    * [x] Work on general spec compliance
-        * [x] Deescape key strings
-        * [x] Throw error on invalid unicode
-* [x] More meaningful error messages
+* [ ] Testing and bugfixing. 
 
 Past 1.0 / nice to have:
 
@@ -24,6 +18,16 @@ Past 1.0 / nice to have:
 	* [ ] Find proper library / framework for unit testing
 * [ ] More quality of life functionality
 	* [ ] Datatype specific properties
+* [ ] Write properly escaped json on toString() call.
+
+## Usage
+
+For hassle free use as-is, I suggest simply throwing the entire fbJson/ folder and the fbJson.bi file into your
+repository to include the code at compile time. 
+
+If you don't want to litter your repository with my source code, you can also compile fbJson.bas with the "-lib" or "-dll" 
+flag. Then you only need the fbJsonBase.bi and fbJsonItem.bi along with the DLL.
+
 
 ## Parsing stuff
 
@@ -109,3 +113,11 @@ Returns true if the item is an object that contains the given key.
 `jsonItem.ToString() as string` 
 Creates a string representation of the Item and all it's children.
 
+## Compiling
+
+If you really need a fast JSON parser, compiling fbJson with these options will result in a moderate performance boost. 
+In my usual benchmark, I get ~30% faster execution of repeatatly parsing a moderate sized file.
+
+```
+fbc -gen GCC -Wc -O1 fbJson.bas
+```
