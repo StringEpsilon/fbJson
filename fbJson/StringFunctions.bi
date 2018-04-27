@@ -259,7 +259,7 @@ function isValidDouble(byref value as string) as boolean
 		return true
 	end if
 	
-	dim as integer comma = 0, exponent = 0,  sign = 0
+	dim as integer period = 0, exponent = 0
 	
 	' Yay for manual loop-unrolling.
 	select case as const value[0]
@@ -274,7 +274,6 @@ function isValidDouble(byref value as string) as boolean
 		case 46: ' .
 			return false
 		case 45: ' -
-			sign += 1
 		case else
 			return false
 	end select
@@ -285,20 +284,24 @@ function isValidDouble(byref value as string) as boolean
 			case 48, 49,50,51,52,53,54,55,56,57 ' 1 - 9
 				' do nothing
 			case 101, 69: 'e, E
+				if (exponent > 0) then
+					return false
+				end if
 				exponent += 1
-				if (exponent > 1) then
-					return false
-				end if
 			case 46: ' .
-				comma += 1
-				if (comma > 1) then
+				if (period > 0 or exponent > 0 ) then
 					return false
 				end if
+				period += 1
 			case 45: ' -
-				sign += 1
-				if (sign > 1 or i > 0) then
+				if ((value[i-1] <> 101 and value[i-1] <> 69)) then
 					return false
 				end if
+			case asc("+"):
+				if (value[i-1] <> 101 and value[i-1] <> 69) then
+					return false
+				end if
+			
 			case else
 				return false
 		end select

@@ -299,7 +299,32 @@ item = jsonItem("{""foo"": [Infinity]}")
 assertEqual(malformed, item.Datatype)
 assertEqual(malformed, item[0].Datatype)
 
+item = jsonItem("4.44")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("4.44", item.value)
 
+item = jsonItem("4e1")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("40", item.value)
+
+item = jsonItem("4e-1")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("0.4", item.value)
+
+item = jsonItem("-4e-1")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("-0.4", item.value)
+
+item = jsonItem("-4e-1.2")
+assertEqual(malformed, item.Datatype)
+
+item = jsonItem("-4e+1")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("-40", item.value)
+
+item = jsonItem("{""foo"": [Infinity]}")
+assertEqual(malformed, item.Datatype)
+assertEqual(malformed, item[0].Datatype)
 
 item = jsonItem("[-Infinity]")
 assertEqual(malformed, item.Datatype)
