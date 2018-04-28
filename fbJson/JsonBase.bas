@@ -178,7 +178,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 	dim as parserState state
 	dim as boolean isStringOpen
 	dim as byte unicodeSequence
-	dim as  boolean isValidCodepoint = true
 	dim as boolean isEscaped = false
 	
 	' To handle trimming, we use these:
@@ -211,40 +210,41 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			
 	' Skipping the opening and closing brackets makes things a bit easier.
 	for i as integer = parseStart to parseEnd
-	
-		' UTF-8 length validation:
-		if ( jsonstring[i] SHR 6 = &b10 ) then
-			unicodeSequence -= 1
-			if (unicodeSequence < 0 ) then
+		select case as const jsonstring[i]		
+			' These codepoints are straight up invalid no matter what:
+			case 192, 193, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255:
 				currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
 				goto cleanup
-			end if
-		else
-			
-			if (unicodeSequence > 0) then
+			case 237
+				' TODO Validate against surrogate pairs, which are invalid in UTF-8.
 				currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
 				goto cleanup
-			end if
-			select case as const jsonString[i] shr 4 
-				case 12, 13
-					unicodeSequence = 1
-				case 14
-					unicodeSequence = 2
-				case 15
-					unicodeSequence = 3
-				case else
-					unicodeSequence = 0
-			end select
+			case else
+				' UTF-8 length validation:
+				if ( jsonstring[i] SHR 6 = &b10 ) then
+					unicodeSequence -= 1
+					if (unicodeSequence < 0 ) then
+						currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
+						goto cleanup
+					end if
+				else
+					if (unicodeSequence > 0) then
+						currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
+						goto cleanup
+					end if
+					select case as const jsonString[i] shr 4 
+						case 12, 13
+							unicodeSequence = 1
+						case 14
+							unicodeSequence = 2
+						case 15
+							unicodeSequence = 3
+						case else
+							unicodeSequence = 0
+					end select
+				end if
+		end select
 			
-		end if
-		
-		ValidateCodepoint(jsonstring[i], isValidCodepoint)
-		
-		if ( isValidCodepoint = false ) then
-			currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
-			goto cleanup
-		end if
-	
 		' Because strings can contain json tokens, we handle them seperately:
 		if ( jsonString[i] = jsonToken.Quote andAlso isEscaped = false) then
 			isStringOpen = not(isStringOpen)
@@ -265,7 +265,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				case else
 				end select
 			end if
-			
 		end if
 		
 		' When not in a string, we can handle the complicated suff:
@@ -381,131 +380,134 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			if ( state = valueToken ) then
 				valueLength +=1
 			end if
-		
-		end if	
-		
-		if ( i = parseEnd) then
-			if ( isStringOpen ) then 
+			
+			if (i = parseEnd) then
 				currentItem->setErrorMessage(stringNotClosed, jsonstring, i+1)
 				goto cleanup 
 			end if
-			if ( state <> nestEnd ) then
-
-				if (state = keyTokenClosed) then
-					currentItem->setErrorMessage(expectedKey, jsonstring, i+1)
-					goto cleanup
-				end if
-						
-				if ( currentItem->_parent <> 0) then
-					currentItem->setErrorMessage(iif(currentItem->_datatype = jsonObject,objectNotClosed, arrayNotClosed), jsonstring, i)
-					goto cleanup
-				end if
 			
-				if ( state = valueToken and valueLength > 0 ) then
-					state = valueTokenClosed
-					if (valueLength = 0) then
-						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
-						goto cleanup
-					end if
-				end if
-			end if
-			if ( state = valueToken ) then
-				currentItem->setErrorMessage(expectedValue, jsonstring, i+1)
+			continue for
+		end if	
+		
+		if ( i = parseEnd andAlso  state <> nestEnd) then
+			if (state = keyTokenClosed) then
+				currentItem->setErrorMessage(expectedKey, jsonstring, i+1)
 				goto cleanup
 			end if
+					
+			if ( currentItem->_parent <> 0) then
+				currentItem->setErrorMessage(iif(currentItem->_datatype = jsonObject,objectNotClosed, arrayNotClosed), jsonstring, i)
+				goto cleanup
+			end if
+		
+			if ( state = valueToken ) then
+				if (valueLength > 0 ) then
+					state = valueTokenClosed
+				else
+					currentItem->setErrorMessage(expectedValue, jsonstring, i+1)
+					goto cleanup
+				end if
+			end if
 		end if
 		
-		if (state = valueTokenClosed orElse state = nestEnd) then
-			' because we already know how long the string we are going to parse is, we can skip if it's 0.
-			if ( valueLength <> 0 ) then
-				if (child = 0) then child = new JsonBase()
-				' The time saved with this is miniscule, but reliably measurable.
-				select case as const jsonstring[valuestart]
-					case jsonToken.Quote
-						if ( jsonstring[valueStart+valueLength-1] <> jsonToken.Quote ) then
-							currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+		select case as const state
+			case valueTokenClosed, nestEnd
+				' because we already know how long the string we are going to parse is, we can skip if it's 0.
+				if ( valueLength <> 0 ) then
+					if (child = 0) then child = new JsonBase()
+					' The time saved with this is miniscule, but reliably measurable.
+					select case as const jsonstring[valuestart]
+						case jsonToken.Quote
+							if ( jsonstring[valueStart+valueLength-1] <> jsonToken.Quote ) then
+								currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+								goto cleanup
+							end if
+							FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
+							child->_dataType = jsonDataType.jsonString
+							if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
+								if ( child->_value <> "" andAlso DeEscapeString(child->_value) = false ) then
+									child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
+								end if
+							end if
+
+						case 110, 102, 116 ' n f t
+							' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
+							FastMid(child->_value, jsonString, valuestart, valueLength)
+							select case child->_value
+								case "null"
+									child->_dataType = jsonNull
+								case "true", "false"
+									child->_dataType = jsonBool
+								case else
+									' Invalid value or missing quotation marks
+									child->setErrorMessage(invalidValue, jsonstring, valueStart)
+							end select
+							
+						case jsonToken.minus, 48 to 57:
+							fastMid(child->_value, jsonString, valuestart, valueLength)
+							if ( isValidDouble(child->_value) ) then
+								child->_dataType = jsonDataType.jsonNumber
+							else
+								child->setErrorMessage(invalidNumber, jsonstring, i)
+							end if
+													
+						case else
+							FastMid(child->_value, jsonString, valuestart, valueLength)
+							child->setErrorMessage(invalidValue, jsonstring, i)
+					end select
+					
+					if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
+						if (i = parseEnd and child->_datatype <> malformed) then
+							FastCopy(this._value, child->_value)
+							this._datatype = child->_datatype
+							this._error = child->_error
+							delete child
+						else
+							currentItem->setErrorMessage(0, jsonstring, i+1)
 							goto cleanup
 						end if
-						FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
-						child->_dataType = jsonDataType.jsonString
-						if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
-							if ( child->_value <> "" andAlso DeEscapeString(child->_value) = false ) then
-								FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
-								child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
-							end if
-						end if
-
-					case 110, 102, 116 ' n f t
-						' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
-						FastMid(child->_value, jsonString, valuestart, valueLength)
-						select case child->_value
-							case "null"
-								child->_dataType = jsonNull
-							case "true", "false"
-								child->_dataType = jsonBool
-							case else
-								' Invalid value or missing quotation marks
-								child->setErrorMessage(invalidValue, jsonstring, valueStart)
-						end select
-					case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
-						fastMid(child->_value, jsonString, valuestart, valueLength)
-						if ( isValidDouble(child->_value) ) then
-							child->_dataType = jsonDataType.jsonNumber
-						else
-							child->setErrorMessage(invalidNumber, jsonstring, i)
-						end if
-					case jsonToken.SquareClose
-					
-					case else
-						FastMid(child->_value, jsonString, valuestart, valueLength)
-						child->setErrorMessage(invalidValue, jsonstring, i)
-				end select
-				
-				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
-					if (i = parseEnd and child->_datatype <> malformed) then
-						FastCopy(this._value, child->_value)
-						this._datatype = child->_datatype
-						this._error = child->_error
-						delete child
+						child = 0
 					else
-						currentItem->setErrorMessage(0, jsonstring, i+1)
-						goto cleanup
+						if (child->_datatype = malformed) then
+							currentItem->SetMalformed()
+						end if
+						currentItem->AppendChild(child)
 					end if
-					child = 0
-				else
-					if (child->_datatype = malformed) then
-						currentItem->SetMalformed()
-					end if
-					currentItem->AppendChild(child)
-				end if
-				valueLength = 0
-			end if
-			
-			if state = nestEnd then
-				if (currentItem = 0 or currentItem->_parent = 0) then
-					this.setMalformed()
-					return
+					valueLength = 0
 				end if
 				
-				currentItem = currentItem->_parent
-				state = nestEndHandled
-			else
-				state = resetState
-			end if
-		end if
+				if state = nestEnd then
+					if (currentItem = 0 or currentItem->_parent = 0) then
+						this.setMalformed()
+						return
+					end if
+					
+					currentItem = currentItem->_parent
+					state = nestEndHandled
+				else
+					child = 0
+					if ( currentItem->_datatype = jsonArray ) then
+						state = valueToken
+						valueStart = i+1
+						trimLeftActive = true
+					else
+						trimLeftActive = false
+						state = none
+					end if
+				end if
 		
-		if( state = resetState) then
-			valueLength = 0
-			child = 0
-			if ( currentItem->_datatype = jsonArray ) then
-				state = valueToken
-				valueStart = i+1
-				trimLeftActive = true
-			else
-				trimLeftActive = false
-				state = none
-			end if
-		end if
+			case resetState:
+				valueLength = 0
+				child = 0
+				if ( currentItem->_datatype = jsonArray ) then
+					state = valueToken
+					valueStart = i+1
+					trimLeftActive = true
+				else
+					trimLeftActive = false
+					state = none
+				end if
+		end select
 	next
 	
 	return

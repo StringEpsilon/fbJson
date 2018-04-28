@@ -29,30 +29,9 @@ declare function SurrogateToUtf8(surrogateA as long, surrogateB as long) as stri
 declare function areEqual(byref stringA as string, byref stringB as string) as boolean
 declare function DeEscapeString(byref escapedString as string) as boolean
 
-#macro ValidateCodepoint(codepoint, isValid)
-	if (codepoint < 191) then
-		isValid = true
-	else
-	
-		select case as const codepoint
-			' These codepoints are straight up invalid no matter what:
-			case 192, 193, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255:
-				isValid = false
-			case 237
-				' TODO Validate against surrogate pairs, which are invalid in UTF-8.
-				isValid = false
-			case else
-				' Validation of invalid continuation handled in parser.
-				isValid = true
-		end select
-	end if
-#endmacro
-
-
-
 sub FastSpace(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
-	if ( destinationPtr->size <> length ) then 
+	if ( destinationPtr->size < length ) then 
 		deallocate destinationptr->stringdata
 		destinationPtr->stringData = allocate(length+1)
 	end if
@@ -72,8 +51,7 @@ sub FastCopy(byref destination as string, byref source as string)
 	destinationPtr->stringData = allocate(sourcePtr->length+1)
 	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
 	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
-	memcpy( destinationPtr->stringData, sourcePtr->stringData, destinationPtr->size )
-	
+	memcpy( destinationPtr->stringData, sourcePtr->stringData, destinationPtr->size)
 end sub
 
 
@@ -205,14 +183,11 @@ function DeEscapeString(byref escapedString as string) as boolean
 					escapedString[i+1] = 9 ' tab
 				case 117 ' u
 					'magic number '6': 2 for "\u" and 4 digit.
+					if (i+5 > length) then
+						return false
+					end if
 					dim sequence as string = mid(escapedString, i+3, 4)
-					for i as integer = 0 to 3
-						select case as const sequence[i]
-							case 48 to 57, asc("a") to asc("f"), asc("A") to asc("F")
-							case else
-								return false
-						end select
-					next
+
 					dim pad as integer
 					dim as string glyph
 					dim as long codepoint = strtoull(sequence, 0, 16)
@@ -258,12 +233,15 @@ end function
 function isValidDouble(byref value as string) as boolean
 	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
 	
-	select case value
-		case "0", "0e1","0e+1","0E1", "0E+1"
-			value = "0"
-			return true
-		end 
-	end select
+	if valuePtr->length > 2 then
+		select case value
+			' Shorthands for "0" that won't pass this validation otherwise.
+			case  "0e1","0e+1","0E1", "0E+1"
+				value = "0"
+				return true
+			end 
+		end select
+	end if
 	
 	' Note to reader: 
 	' This function is strictly for validation as far as the IETF rfc7159 is concerned.
@@ -275,7 +253,7 @@ function isValidDouble(byref value as string) as boolean
 		return true
 	end if
 	
-	dim as integer period = 0, exponent = 0
+	dim as integer period = 0, exponent = 0, sign = 0
 	
 	' Yay for manual loop-unrolling.
 	select case as const value[0]
@@ -291,6 +269,7 @@ function isValidDouble(byref value as string) as boolean
 		case 46: ' .
 			return false
 		case 45: ' -
+			sign += 1
 		case else
 			return false
 	end select
@@ -343,6 +322,9 @@ function isValidDouble(byref value as string) as boolean
 		end select
 	next
 	
+	if (exponent = 0 and period = 0 and (sign = 0 orElse valuePtr->length > 1) and valuePtr->length < 309) then
+		return true
+	end if
 	value = str(cdbl(value))
 	return not(valuePtr->length = 1 andAlso (value = "0"))
 end function
