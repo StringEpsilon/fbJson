@@ -207,7 +207,7 @@ item = jsonItem("{""key"":""}")
 assertEqual(malformed, item.Datatype)
 print "[OK]"
 
-print "#2 - test malformed string 2: {""key"":""value\n}"
+print "#2 - test malformed string 2: {""key"":""one value\n}"
 
 item = jsonItem("{""key"":""value\n}")
 assertEqual(malformed, item.Datatype)

@@ -256,7 +256,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				case keyToken
 					if child = 0 then child = new JsonBase()
 					fastmid(child->_key, jsonString, valuestart,  i - valueStart)
-					if ( isInString(child->_key, jsonToken.backslash) <> 0 ) then 
+					if ( isInString(child->_key, jsonToken.backslash) <> 0 ) then
 						if ( DeEscapeString(child->_key) = false ) then
 							child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
 						end if
@@ -270,7 +270,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 		
 		' When not in a string, we can handle the complicated suff:
 		if ( isStringOpen = false ) then
-			' Note: Not a single string-comparison in here. 
+			' Note: Not a single string-comparison in here.
 			select case as const jsonstring[i]
 				case jsonToken.BackSlash
 					currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
@@ -291,8 +291,13 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
 						goto cleanup
 					end if
+
 					if ( state = valueToken ) then
 						state = valueTokenClosed
+						if (valueLength = 0) then
+							currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+							goto cleanup
+						end if
 					elseif ( state = nestEndHandled ) then
 						state = resetState
 					else 
@@ -397,7 +402,11 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				end if
 			
 				if ( state = valueToken and valueLength > 0 ) then
-					state = valueTokenClosed					
+					state = valueTokenClosed
+					if (valueLength = 0) then
+						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+						goto cleanup
+					end if
 				end if
 			end if
 			if ( state = valueToken ) then
@@ -406,89 +415,72 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			end if
 		end if
 		
-		if (state = valueTokenClosed orElse state = nestEnd) then			
+		if (state = valueTokenClosed orElse state = nestEnd) then
 			' because we already know how long the string we are going to parse is, we can skip if it's 0.
-			if ( valueLength > 0 ) then
+			if ( valueLength <> 0 ) then
 				if (child = 0) then child = new JsonBase()
-				' The time saved with this is miniscule, but reliably measurable.		
+				' The time saved with this is miniscule, but reliably measurable.
 				select case as const jsonstring[valuestart]
-				case jsonToken.Quote
-					if ( jsonstring[valueStart+valueLength-1] <> jsonToken.Quote ) then
-						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
-						goto cleanup
-					end if
-					FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
-					child->_dataType = jsonDataType.jsonString
-					if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
-						if ( child->_value <> "" andAlso DeEscapeString(child->_value) = false ) then
-							FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
-							child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
+					case jsonToken.Quote
+						if ( jsonstring[valueStart+valueLength-1] <> jsonToken.Quote ) then
+							currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+							goto cleanup
 						end if
-					end if
+						FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
+						child->_dataType = jsonDataType.jsonString
+						if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
+							if ( child->_value <> "" andAlso DeEscapeString(child->_value) = false ) then
+								FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
+								child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
+							end if
+						end if
 
-				case 110, 102, 116 ' n f t
-					' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
-					FastMid(child->_value, jsonString, valuestart, valueLength)
-					select case child->_value
-						case "null"
-							child->_dataType = jsonNull
-						case "true", "false"
-							child->_dataType = jsonBool
-						case else
-							' Invalid value or missing quotation marks							
-							child->setErrorMessage(invalidValue, jsonstring, valueStart)
-					end select
-				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
-					fastMid(child->_value, jsonString, valuestart, valueLength)
-					if ( isValidDouble(child->_value) ) then
-						child->_dataType = jsonDataType.jsonNumber
-					else
-						child->setErrorMessage(invalidNumber, jsonstring, i)
-					end if
-				case jsonToken.SquareClose
-				
-				case else
-					FastMid(child->_value, jsonString, valuestart, valueLength)
-					child->setErrorMessage(invalidValue, jsonstring, i)
+					case 110, 102, 116 ' n f t
+						' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
+						FastMid(child->_value, jsonString, valuestart, valueLength)
+						select case child->_value
+							case "null"
+								child->_dataType = jsonNull
+							case "true", "false"
+								child->_dataType = jsonBool
+							case else
+								' Invalid value or missing quotation marks
+								child->setErrorMessage(invalidValue, jsonstring, valueStart)
+						end select
+					case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
+						fastMid(child->_value, jsonString, valuestart, valueLength)
+						if ( isValidDouble(child->_value) ) then
+							child->_dataType = jsonDataType.jsonNumber
+						else
+							child->setErrorMessage(invalidNumber, jsonstring, i)
+						end if
+					case jsonToken.SquareClose
+					
+					case else
+						FastMid(child->_value, jsonString, valuestart, valueLength)
+						child->setErrorMessage(invalidValue, jsonstring, i)
 				end select
 				
-				if (child->_datatype = malformed) then					
-					if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then						
-						delete child
-						child = 0
-					else
-						currentItem->AppendChild(child)
-					end if
-					currentItem->SetMalformed()
-					return
-				end if
-				
 				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
-					if (i = parseEnd) then
+					if (i = parseEnd and child->_datatype <> malformed) then
 						FastCopy(this._value, child->_value)
 						this._datatype = child->_datatype
 						this._error = child->_error
 						delete child
 					else
-						
 						currentItem->setErrorMessage(0, jsonstring, i+1)
 						goto cleanup
 					end if
 					child = 0
 				else
+					if (child->_datatype = malformed) then
+						currentItem->SetMalformed()
+					end if
 					currentItem->AppendChild(child)
 				end if
-			else
-				if state <> nestEnd then
-					if (child <> 0) then
-						child->setErrorMessage(arrayNotClosed, jsonstring, i)
-					else
-						currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
-					end if
-					goto cleanup
-				end if
+				valueLength = 0
 			end if
-			valueLength = 0
+			
 			if state = nestEnd then
 				if (currentItem = 0 or currentItem->_parent = 0) then
 					this.setMalformed()
@@ -497,7 +489,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				
 				currentItem = currentItem->_parent
 				state = nestEndHandled
-
 			else
 				state = resetState
 			end if
