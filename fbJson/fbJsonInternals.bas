@@ -38,11 +38,11 @@ end enum
 
 enum parserState
 	none = 0
-	keyToken
-	keyTokenClosed
-	valueToken
-	valueTokenClosed
-	nestEnd
+	keyToken = 1
+	keyTokenClosed = 2
+	valueToken = 3
+	valueTokenClosed = 4
+	nestEnd = 5
 	nestEndHandled
 	resetState
 end enum

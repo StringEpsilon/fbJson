@@ -50,7 +50,7 @@ sub JsonBase.setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring a
 	this.SetMalformed()
 	#ifdef fbJSON_debug
 		print "fbJSON Error: "& this._error
-		end -1
+		'end -1
 	#endif
 end sub
 
@@ -287,6 +287,10 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					end if
 					
 				case jsonToken.Comma:
+					if (i = parseEnd) then
+						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+						goto cleanup
+					end if
 					if ( state = valueToken ) then
 						state = valueTokenClosed
 					elseif ( state = nestEndHandled ) then
@@ -295,7 +299,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						currentItem->setErrorMessage(expectedKey, jsonstring, i)
 						goto cleanup
 					end if
-					
 				case jsonToken.CurlyOpen:
 					if ( state = valueToken ) then
 						if (child = 0) then child = new JsonBase()
@@ -309,7 +312,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					end if
 					
 				case jsonToken.SquareOpen:
-					if ( state = valueToken ) then
+					if ( state = valueToken and valueLength = 0 ) then
 						if (child = 0) then child = new JsonBase()
 						child->_datatype = jsonArray
 						currentItem->AppendChild( child )
@@ -328,7 +331,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						goto cleanup
 					end if					
 				case jsonToken.SquareClose:
-					if (currentItem->_datatype = jsonArray) then
+					if (currentItem->_datatype = jsonArray ) then
 						state = nestEnd
 					else
 						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
@@ -363,6 +366,12 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			else
 				isEscaped = false
 			end if
+			select case as const jsonString[i]
+				case 0 to 31
+					currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+					goto cleanup
+				
+			end select
 			' If we are in a string IN a value, we add up the length.
 			if ( state = valueToken ) then
 				valueLength +=1
@@ -404,27 +413,30 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				' The time saved with this is miniscule, but reliably measurable.		
 				select case as const jsonstring[valuestart]
 				case jsonToken.Quote
-
+					if ( jsonstring[valueStart+valueLength-1] <> jsonToken.Quote ) then
+						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+						goto cleanup
+					end if
 					FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 					child->_dataType = jsonDataType.jsonString
 					if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
-						if ( DeEscapeString(child->_value) = false ) then
+						if ( child->_value <> "" andAlso DeEscapeString(child->_value) = false ) then
 							FastMid(child->_value, jsonString, valuestart+1, valueLength-2)
 							child->setErrorMessage(invalidEscapeSequence, jsonstring, i)
 						end if
 					end if
 
-				case 110,78, 102,70, 116,84 ' n,N f,F t,T
+				case 110, 102, 116 ' n f t
 					' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
 					FastMid(child->_value, jsonString, valuestart, valueLength)
-					select case lcase(child->_value)
+					select case child->_value
 						case "null"
 							child->_dataType = jsonNull
 						case "true", "false"
 							child->_dataType = jsonBool
 						case else
 							' Invalid value or missing quotation marks							
-							child->setErrorMessage(invalidValue, jsonstring, i)
+							child->setErrorMessage(invalidValue, jsonstring, valueStart)
 					end select
 				case jsonToken.minus, 48,49,50,51,52,53,54,55,56,57:
 					fastMid(child->_value, jsonString, valuestart, valueLength)
@@ -450,11 +462,18 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					currentItem->SetMalformed()
 					return
 				end if
+				
 				if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
-					FastCopy(this._value, child->_value)
-					this._datatype = child->_datatype
-					this._error = child->_error
-					delete child
+					if (i = parseEnd) then
+						FastCopy(this._value, child->_value)
+						this._datatype = child->_datatype
+						this._error = child->_error
+						delete child
+					else
+						
+						currentItem->setErrorMessage(0, jsonstring, i+1)
+						goto cleanup
+					end if
 					child = 0
 				else
 					currentItem->AppendChild(child)
@@ -471,8 +490,14 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			end if
 			valueLength = 0
 			if state = nestEnd then
+				if (currentItem = 0 or currentItem->_parent = 0) then
+					this.setMalformed()
+					return
+				end if
+				
 				currentItem = currentItem->_parent
-				state = nestEndHandled 
+				state = nestEndHandled
+
 			else
 				state = resetState
 			end if

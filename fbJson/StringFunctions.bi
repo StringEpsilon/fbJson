@@ -205,11 +205,19 @@ function DeEscapeString(byref escapedString as string) as boolean
 					escapedString[i+1] = 9 ' tab
 				case 117 ' u
 					'magic number '6': 2 for "\u" and 4 digit.
-					dim sequence as string = mid(escapedString, i+3, 4) 
+					dim sequence as string = mid(escapedString, i+3, 4)
+					for i as integer = 0 to 3
+						select case as const sequence[i]
+							case 48 to 57, asc("a") to asc("f"), asc("A") to asc("F")
+							case else
+								return false
+						end select
+					next
 					dim pad as integer
 					dim as string glyph
 					dim as long codepoint = strtoull(sequence, 0, 16)
-					if (&hD800 <= codepoint and codepoint <= &hDBFF) then
+					if (&hD800 <= codepoint and codepoint <= &hDFFF) then
+						
 						dim secondSurrogate as string = mid(escapedString, i+7+2, 4)
 						if (len(secondSurrogate) = 4) then
 							glyph = SurrogateToUtf8(codepoint, strtoull(secondSurrogate, 0, 16))
@@ -217,7 +225,7 @@ function DeEscapeString(byref escapedString as string) as boolean
 						else
 							return false
 						end if
-					elseif (codepoint > 0) then
+					elseif (codepoint > 0 or sequence = "0000") then
 						glyph = LongToUft8(codepoint)
 						pad = 6 - len(glyph)
 					end if
@@ -249,6 +257,14 @@ end function
 
 function isValidDouble(byref value as string) as boolean
 	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
+	
+	select case value
+		case "0", "0e1","0e+1","0E1", "0E+1"
+			value = "0"
+			return true
+		end 
+	end select
+	
 	' Note to reader: 
 	' This function is strictly for validation as far as the IETF rfc7159 is concerned.
 	' This might be more restrictive than you need it to be outside JSON use.
@@ -264,7 +280,7 @@ function isValidDouble(byref value as string) as boolean
 	' Yay for manual loop-unrolling.
 	select case as const value[0]
 		case 48: ' 0. No leading zeroes allowed.
-			if (valuePtr->length > 1) then
+			if (valuePtr->length > 1 and value[1] <> 101 and value[1] <> 69  and value[1] <> 46 ) then
 				return false
 			end if
 		case 49,50,51,52,53,54,55,56,57 ' 1 - 9
@@ -281,24 +297,43 @@ function isValidDouble(byref value as string) as boolean
 	
 	for i as integer = 1 to valuePtr->length-1
 		select case as const value[i]
-			case 48, 49,50,51,52,53,54,55,56,57 ' 1 - 9
+			case 48
+				' Edgecase: "-01"
+				if (i = 1 and valuePtr->length-1 = i and value[0] <> 45) then
+					return false
+				end if
+				if (value[0] = 45 and i < valuePtr->length-1) then
+					if (value[i+1] >= 48 and value[i+1] <= 57) then
+						return false
+					end if
+				end if
+			case 49,50,51,52,53,54,55,56,57 ' 1 - 9
 				' do nothing
 			case 101, 69: 'e, E
+				if (i = valuePtr->length-1) then
+					return false
+				end if
 				if (exponent > 0) then
+					return false
+				end if
+				if (value[i-1] = 46) then
 					return false
 				end if
 				exponent += 1
 			case 46: ' .
+				if (i =  valuePtr->length-1) then
+					return false
+				end if
 				if (period > 0 or exponent > 0 ) then
 					return false
 				end if
+				if ( value[i-1] = 45) then return false
 				period += 1
-			case 45: ' -
+			case 45, asc("+"): ' -
 				if ((value[i-1] <> 101 and value[i-1] <> 69)) then
 					return false
 				end if
-			case asc("+"):
-				if (value[i-1] <> 101 and value[i-1] <> 69) then
+				if (i =  valuePtr->length-1) then
 					return false
 				end if
 			
@@ -308,7 +343,7 @@ function isValidDouble(byref value as string) as boolean
 	next
 	
 	value = str(cdbl(value))
-	return not(valuePtr->length = 1 andAlso value = "0") 
+	return not(valuePtr->length = 1 andAlso (value = "0"))
 end function
 
 end namespace
