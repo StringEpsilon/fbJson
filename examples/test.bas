@@ -18,6 +18,8 @@ sub AssertEqual(expected as string, result as string)
 	end if
 end sub
 
+
+#define fbJson_Debug
 #include once "../fbJson.bas"
 
 dim as jsonItem item
@@ -284,6 +286,15 @@ assertEqual("-12.3456789", item.Value)
 item = jsonItem("[12.00000000]")
 assertEqual("12", item[0].value)
 assertEqual(jsonNumber, item[0].Datatype)
+
+item = jsonItem("0.01")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("0.01", item.value)
+
+item = jsonItem("-0.01")
+assertEqual(jsonNumber, item.Datatype)
+assertEqual("-0.01", item.value)
+
 
 item = jsonItem("[+12.3456789]")
 assertEqual(malformed, item.Datatype)

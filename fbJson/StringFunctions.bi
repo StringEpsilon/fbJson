@@ -281,6 +281,7 @@ function isValidDouble(byref value as string) as boolean
 	select case as const value[0]
 		case 48: ' 0. No leading zeroes allowed.
 			if (valuePtr->length > 1 and value[1] <> 101 and value[1] <> 69  and value[1] <> 46 ) then
+				
 				return false
 			end if
 		case 49,50,51,52,53,54,55,56,57 ' 1 - 9
@@ -299,12 +300,12 @@ function isValidDouble(byref value as string) as boolean
 		select case as const value[i]
 			case 48
 				' Edgecase: "-01"
-				if (i = 1 and valuePtr->length-1 = i and value[0] <> 45) then
-					return false
-				end if
-				if (value[0] = 45 and i < valuePtr->length-1) then
-					if (value[i+1] >= 48 and value[i+1] <= 57) then
-						return false
+				if (i = 1 ) then
+				
+					if (value[0] = 45 and i < valuePtr->length-1) then
+						if (value[i+1] >= 48 and value[i+1] <= 57) then
+							return false
+						end if
 					end if
 				end if
 			case 49,50,51,52,53,54,55,56,57 ' 1 - 9
