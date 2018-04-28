@@ -153,19 +153,18 @@ function areEqual(byref stringA as string, byref stringB as string) as boolean
 	if (A = B) then
 		return true
 	end if
-	
 	return strcmp(A->stringData, B->stringData) = 0
 end function
 
 function DeEscapeString(byref escapedString as string) as boolean
 	dim as uinteger length = len(escapedString)-1
 
-	dim as uinteger trimSize = 0	
+	dim as uinteger trimSize = 0
 	dim as boolean isEscaped
 	for i as uinteger = 0 to length 
 		' 92 is backslash
 		
-		if ( escapedString[i] = 92 and isEscaped = false) then
+		if ( escapedString[i] = 92 andAlso isEscaped = false) then
 			isEscaped = true
 			if ( i < length ) then
 				select case as const escapedString[i+1]
@@ -192,7 +191,6 @@ function DeEscapeString(byref escapedString as string) as boolean
 					dim as string glyph
 					dim as long codepoint = strtoull(sequence, 0, 16)
 					if (&hD800 <= codepoint and codepoint <= &hDFFF) then
-						
 						dim secondSurrogate as string = mid(escapedString, i+7+2, 4)
 						if (len(secondSurrogate) = 4) then
 							glyph = SurrogateToUtf8(codepoint, strtoull(secondSurrogate, 0, 16))
@@ -200,12 +198,12 @@ function DeEscapeString(byref escapedString as string) as boolean
 						else
 							return false
 						end if
-					elseif (codepoint > 0 or sequence = "0000") then
+					elseif (codepoint > 0 orElse sequence = "0000") then
 						glyph = LongToUft8(codepoint)
 						pad = 6 - len(glyph)
 					end if
 					
-					if (len(glyph) = 0 ) then
+					if (len(glyph) = 0) then
 						return false
 					end if
 					
@@ -233,7 +231,7 @@ end function
 function isValidDouble(byref value as string) as boolean
 	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
 	
-	if valuePtr->length > 2 then
+	if valuePtr->length > 2 and valuePtr->length < 5 then
 		select case value
 			' Shorthands for "0" that won't pass this validation otherwise.
 			case  "0e1","0e+1","0E1", "0E+1"
@@ -262,7 +260,7 @@ function isValidDouble(byref value as string) as boolean
 				
 				return false
 			end if
-		case 49,50,51,52,53,54,55,56,57 ' 1 - 9
+		case 49 to 57 ' 1 - 9
 			' do nothing
 		case 101, 69: 'e, E
 			return false
@@ -309,7 +307,7 @@ function isValidDouble(byref value as string) as boolean
 				end if
 				if ( value[i-1] = 45) then return false
 				period += 1
-			case 45, asc("+"): ' -
+			case 45, 43 ' -, +
 				if ((value[i-1] <> 101 and value[i-1] <> 69)) then
 					return false
 				end if

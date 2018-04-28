@@ -111,6 +111,7 @@ function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
 	if ( newChild = 0 ) then return false	
 	if ( this._datatype = jsonObject ) then 
 		if ( this.ContainsKey(newChild->_key) ) then
+			delete newChild
 			return false
 		end if
 	end if
@@ -212,7 +213,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 	for i as integer = parseStart to parseEnd
 		select case as const jsonstring[i]		
 			' These codepoints are straight up invalid no matter what:
-			case 192, 193, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255:
+			case 192, 193, 245 to 255:
 				currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
 				goto cleanup
 			case 237
@@ -249,12 +250,11 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 		if ( jsonString[i] = jsonToken.Quote andAlso isEscaped = false) then
 			isStringOpen = not(isStringOpen)
 			if ( currentItem->_datatype = jsonObject ) then
-				select case as const state
-				case none:
+				if state = none then
 					state = keyToken
 					valueStart = i+1
-				case keyToken
-					if child = 0 then child = new JsonBase()
+				elseif state = keyToken then
+					child = new JsonBase()
 					fastmid(child->_key, jsonString, valuestart,  i - valueStart)
 					if ( isInString(child->_key, jsonToken.backslash) <> 0 ) then
 						if ( DeEscapeString(child->_key) = false ) then
@@ -262,8 +262,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						end if
 					end if
 					state = keyTokenClosed
-				case else
-				end select
+				end if
 			end if
 		end if
 		
@@ -303,6 +302,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						currentItem->setErrorMessage(expectedKey, jsonstring, i)
 						goto cleanup
 					end if
+					
 				case jsonToken.CurlyOpen:
 					if ( state = valueToken ) then
 						if (child = 0) then child = new JsonBase()
@@ -316,7 +316,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					end if
 					
 				case jsonToken.SquareOpen:
-					if ( state = valueToken and valueLength = 0 ) then
+					if ( state = valueToken andAlso valueLength = 0 ) then
 						if (child = 0) then child = new JsonBase()
 						child->_datatype = jsonArray
 						currentItem->AppendChild( child )
@@ -333,7 +333,8 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					else
 						currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
 						goto cleanup
-					end if					
+					end if
+							
 				case jsonToken.SquareClose:
 					if (currentItem->_datatype = jsonArray ) then
 						state = nestEnd
@@ -345,9 +346,10 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				case jsonToken.Space, jsonToken.Tab, jsonToken.NewLine, 13
 					' Here, we count the left trim we need. This is faster than using TRIM() even for a single space in front of the value
 					' And most important: It's not slower if we have no whitespaces.
-					if ( state = valueToken and trimLeftActive) then
+					if ( state = valueToken andAlso trimLeftActive) then
 						valueStart +=1
 					end if
+					
 				case jsonToken.Quote
 					' The closing quote get's through to here. We treat is as part of a value, but without throwing errors.
 					if ( state = valueToken ) then
@@ -365,17 +367,18 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					end if
 			end select
 		else
-			if (jsonString[i] = 92 and isEscaped = false) then
+			if (jsonString[i] = 92 andAlso isEscaped = false) then
 				isEscaped = true
 			else
 				isEscaped = false
 			end if
+			
 			select case as const jsonString[i]
 				case 0 to 31
 					currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
 					goto cleanup
-				
 			end select
+
 			' If we are in a string IN a value, we add up the length.
 			if ( state = valueToken ) then
 				valueLength +=1
@@ -413,7 +416,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 		select case as const state
 			case valueTokenClosed, nestEnd
 				' because we already know how long the string we are going to parse is, we can skip if it's 0.
-				if ( valueLength <> 0 ) then
+				if ( valueLength > 0 ) then
 					if (child = 0) then child = new JsonBase()
 					' The time saved with this is miniscule, but reliably measurable.
 					select case as const jsonstring[valuestart]
