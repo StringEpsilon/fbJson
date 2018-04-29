@@ -228,27 +228,28 @@ function DeEscapeString(byref escapedString as string) as boolean
 	return true
 end function
 
-function isValidDouble(byref value as string) as boolean
-	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
-	
-	if valuePtr->length > 2 and valuePtr->length < 5 then
-		select case value
-			' Shorthands for "0" that won't pass this validation otherwise.
-			case  "0e1","0e+1","0E1", "0E+1"
-				value = "0"
-				return true
-			end 
-		end select
-	end if
-	
+function isValidDouble(byref value as string) as boolean	
 	' Note to reader: 
 	' This function is strictly for validation as far as the IETF rfc7159 is concerned.
 	' This might be more restrictive than you need it to be outside JSON use.
 	
 	' It's also a bit nuts. Callgrind is such a fascinating thing.
 	
-	if ( valuePtr->length = 1 andAlso value = "0" ) then
-		return true
+
+	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
+	
+	if (value[0] = 48 ) then
+		if ( valuePtr->length > 2) then
+			select case value
+				' Shorthands for "0" that won't pass this validation otherwise.
+				case  "0e1","0e+1","0E1", "0E+1"
+					value = "0"
+					return true
+				end 
+			end select
+		elseif ( valuePtr->length = 1) then
+			return true
+		end if
 	end if
 	
 	dim as integer period = 0, exponent = 0, sign = 0
