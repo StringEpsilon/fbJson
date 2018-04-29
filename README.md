@@ -2,23 +2,34 @@
 
 A small JSON library written in FreeBASIC.
 
-Latest stable is 0.18
+Latest stable is 0.20.0 
 
 ## License
 
 fbJson is licensed under the [MPL 2.0](https://www.mozilla.org/en-US/MPL/2.0/) from version 0.14.1 onwards.
 
-## ToDos for 1.0
-
-* [ ] Testing and bugfixing. 
+## Roadmap
 
 Past 1.0 / nice to have:
 
-* [ ] Write tests.
-	* [ ] Find proper library / framework for unit testing
 * [ ] More quality of life functionality
 	* [ ] Datatype specific properties
 * [ ] Write properly escaped json on toString() call.
+
+## fbJson specifics
+
+Unfortunately, the JSON spec (RFC 8259) leaves some aspects up for interpretation. You have to watch for the following:
+
+* **UTF-8 forgiveness**: The RFC says that all valid JSON must be UTF-8. fbJSON will reject all input that's not UTF-8 or contains
+ bytesquences that are not valid in UTF. Further, fbJSON will reject certain inputs that are valid in principle, but not (currently) valid
+ unicode. This includes escaped values in the \uXXXX notation.
+* **Nesting**: The RFC says: "An implementation may set limits on the maximum depth ofnesting". fbJSON doesn't. It will happily
+ parse nested elements until it runs out of memory. **Beware.**
+* **String length**: Same situation. In theory, the upper limit is whatever FreeBasics limit is, minus 2 byte.
+* **Duplicate keys**: Parse() will use the newer value for any key. Meaning ```{"a": 1, "a": 2}``` is treated like ```{"a": 2}```.
+
+Note: jsonItem.AddItem() will not override existing keys, since I think the programmer should have more control when
+manipulating the JSON this way.
 
 ## Usage
 
@@ -121,3 +132,12 @@ In my usual benchmark, I get ~30% faster execution of repeatatly parsing a moder
 ```
 fbc -gen GCC -Wc -O1 fbJson.bas
 ```
+
+## Design
+
+The basic principle behind fbJson is to handle all parsing of JSON in one go. There is no AST, no tokenization, etc. 
+JsonBase.Parse() will do all the heavy lifting while iterating over the input byte for byte. Ideally, fbJson would not
+do a single string comparison and only ever look at each byte of the input once. Didn't quite get there ;-)
+
+fbJson is not the fastest parser in the world, but I tried my best to optimize it. As a result, a lot of the code
+is rather ugly and convuluted. isValidDouble() is the most prominent example. Keep that in mind when exploring the codebase.
