@@ -107,29 +107,40 @@ property JsonBase.DataType() as jsonDataType
 	return this._datatype
 end property
 
-function JsonBase.AppendChild(newChild as JsonBase ptr) as boolean
+function JsonBase.AppendChild(newChild as JsonBase ptr, override as boolean = false) as boolean
 	if ( newChild = 0 ) then return false	
 	if ( this._datatype = jsonObject ) then 
-		if ( this.ContainsKey(newChild->_key) ) then
-			delete newChild
-			return false
-		end if
+		for i as integer = 0 to this._count
+			if ( fbJsonInternal.AreEqual(this._children[i]->_key, newChild->_key) ) then
+				if (override) then
+					delete this._children[i]
+					newChild->_parent = @this
+					this._children[i] = newChild
+					return true
+				else 
+					return false
+				end if
+			end if
+		next
 	end if
 	
 	newChild->_parent = @this
 	this._count += 1
 	
-	if this._children = 0 then
-		this._children = allocate(sizeof(JsonBase ptr) * (this._count+1))
-	else
-		this._children = reallocate(this._children, sizeof(JsonBase ptr) * (this._count+1))
+	' I think allocating 2 elements at a time is a decent compromise between memory and speed.
+	' And it does cut the number of reallocations in half.
+	if (this._count mod 2 = 0) then
+		if this._children = 0 then
+			this._children = allocate(sizeof(JsonBase ptr) * (this._count+2))
+		else
+			this._children = reallocate(this._children, sizeof(JsonBase ptr) * (this._count+2))
+		end if
+		
+		if this._children = 0 then
+			this.setMalformed()
+			return false
+		end if
 	end if
-	
-	if this._children = 0 then
-		this.setMalformed()
-		return false
-	end if
-	
 	this._children[this._count] = newChild
 	
 	if ( newChild->_datatype = malformed ) then
@@ -222,7 +233,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				goto cleanup
 			case else
 				' UTF-8 length validation:
-				if ( jsonstring[i] SHR 6 = &b10 ) then
+				if ( jsonstring[i] > 127 andAlso jsonstring[i] SHR 6 = &b10 ) then
 					unicodeSequence -= 1
 					if (unicodeSequence < 0 ) then
 						currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
@@ -233,12 +244,12 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						currentItem->setErrorMessage(invalidCodepoint, jsonstring, i)
 						goto cleanup
 					end if
-					select case as const jsonString[i] shr 4 
-						case 12, 13
+					select case as const jsonString[i] ' shr 4 
+						case 192 to 223
 							unicodeSequence = 1
-						case 14
+						case 224 to 239
 							unicodeSequence = 2
-						case 15
+						case 240 to 247
 							unicodeSequence = 3
 						case else
 							unicodeSequence = 0
@@ -307,7 +318,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					if ( state = valueToken ) then
 						if (child = 0) then child = new JsonBase()
 						child->_datatype = jsonobject
-						currentItem->AppendChild( child )
+						currentItem->AppendChild( child , true)
 						currentItem = child
 						state = resetState
 					else
@@ -319,7 +330,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					if ( state = valueToken andAlso valueLength = 0 ) then
 						if (child = 0) then child = new JsonBase()
 						child->_datatype = jsonArray
-						currentItem->AppendChild( child )
+						currentItem->AppendChild( child , true)
 						currentItem = child
 						state = resetState
 					else
@@ -474,7 +485,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						if (child->_datatype = malformed) then
 							currentItem->SetMalformed()
 						end if
-						currentItem->AppendChild(child)
+						currentItem->AppendChild(child, true)
 					end if
 					valueLength = 0
 				end if

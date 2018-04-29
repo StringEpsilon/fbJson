@@ -19,7 +19,7 @@ type JsonBase extends object
 		
 		declare sub Parse(jsonString as ubyte ptr, endIndex as integer)
 		declare sub SetMalformed()
-		declare function AppendChild(newChild as JsonBase ptr) as boolean
+		declare function AppendChild(newChild as JsonBase ptr, override as boolean = false) as boolean
 		declare sub setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger)
 	public:
 		declare static function ParseJson(inputString as string) byref as JsonBase
