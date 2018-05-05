@@ -10,14 +10,14 @@
 sub JsonBase.setErrorMessage(errorCode as fbJsonInternal.jsonError, jsonstring as byte ptr, position as uinteger) 
 	using fbJsonInternal
 	dim as integer lineNumber = 1
-	dim as integer linePosition = 1
+	dim as integer linePosition = 0
 	dim as integer lastBreak = 0
 	dim as string lastLine
 	
 	for j as integer = 0 to position
 		if ( jsonString[j] = 10 ) then
 			lineNumber +=1
-			linePosition = 1
+			linePosition = 0
 			lastBreak = j
 		end if
 		linePosition +=1
