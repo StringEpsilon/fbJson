@@ -23,7 +23,7 @@ const replacementChar as string  = "�"
 declare sub FastSpace(byref destination as string, length as uinteger)
 declare sub FastLeft(byref destination as string, length as uinteger)
 declare sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
-declare function isInString(byref target as string, byref query as byte) as boolean
+declare function isInString(byref target as string, query as byte) as boolean
 declare function LongToUft8(byref codepoint as long) as string
 declare function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
 declare function areEqual(byref stringA as string, byref stringB as string) as boolean
@@ -75,7 +75,7 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	'destinationPtr->stringData[length+1] = 0
 end sub
 
-function isInString(byref target as string, byref query as byte) as boolean
+function isInString(byref target as string, query as byte) as boolean
 	dim as fbstring ptr targetPtr = cast(fbstring ptr, @target)
 	if ( targetPtr->size = 0 ) then return false
 	

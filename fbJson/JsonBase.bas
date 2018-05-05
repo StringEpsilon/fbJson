@@ -164,9 +164,14 @@ sub JsonBase.SetMalformed()
 	this._datatype = malformed
 	if (this._parent <> 0) then
 		dim item as JsonBase ptr = this._parent
+		item->_error = this._error
 		do
+			if (item->_parent <> 0) then
+				item->_parent->_error = item->_error
+			end if
 			item->_datatype = malformed
 			item = item->_parent
+			
 		loop until item = 0
 	end if
 end sub

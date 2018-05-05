@@ -40,6 +40,4 @@ type JsonItem extends JsonBase
 					
 		declare function RemoveItem(key as string) as boolean
 		declare function RemoveItem(index as integer) as boolean
-		
-		declare function ContainsKey(key as string) as boolean
 end type

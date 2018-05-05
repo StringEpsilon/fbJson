@@ -185,17 +185,6 @@ function JsonItem.AddItem(item as JsonItem) as boolean
 	return false
 end function
 
-function JsonItem.ContainsKey(newKey as string) as boolean
-	if ( this._datatype <> jsonObject ) then return false
-	
-	for i as integer = 0 to this._count
-		if ( this._children[i]->_key = newKey ) then
-			return true
-		end if
-	next
-	return false
-end function
-
 function JsonItem.RemoveItem(newKey as string) as boolean
 	dim as integer index = -1
 	
