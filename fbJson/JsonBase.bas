@@ -83,9 +83,8 @@ operator JsonBase.LET(copy as JsonBase)
 	this._count = copy._count
 	
 	if ( copy._count >= 0) then
-		this._children = allocate(sizeof(JsonBase ptr) * (copy._count+1))
+		this._children = allocate(sizeOf(JsonBase) * (copy._count+1))
 		for i as integer = 0 to copy._count
-			this._children[i] = callocate(sizeOf(JsonBase))
 			*this._children[i] = *copy._children[i]
 		next
 	end if
