@@ -24,8 +24,8 @@ declare sub FastSpace(byref destination as string, length as uinteger)
 declare sub FastLeft(byref destination as string, length as uinteger)
 declare sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
 declare function isInString(byref target as string, query as byte) as boolean
-declare function LongToUft8(byref codepoint as long) as string
-declare function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
+declare sub LongToUft8(byref codepoint as long, byref result as string) 
+declare sub SurrogateToUtf8(surrogateA as long, surrogateB as long, byref result as string)
 declare function areEqual(byref stringA as string, byref stringB as string) as boolean
 declare function DeEscapeString(byref escapedString as string) as boolean
 
@@ -43,12 +43,13 @@ sub FastCopy(byref destination as string, byref source as string)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
 	dim as fbString ptr sourcePtr = cast(fbString ptr, @source)
 	if (sourcePtr->length = 0 and destinationPtr->length = 0) then return
-	if ( destinationPtr->size <> sourcePtr->length ) then 
+	if ( destinationPtr->size < sourcePtr->size ) then 
 		deallocate destinationptr->stringdata
+		destinationPtr->length = sourcePtr->length
+		destinationPtr->size = sourcePtr->length
+		destinationPtr->stringData = allocate(sourcePtr->length+1)
 	end if
-	destinationPtr->length = sourcePtr->length
-	destinationPtr->size = sourcePtr->length
-	destinationPtr->stringData = allocate(sourcePtr->length+1)
+	
 	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
 	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
 	memcpy( destinationPtr->stringData, sourcePtr->stringData, destinationPtr->size)
@@ -59,18 +60,22 @@ sub FastLeft(byref destination as string, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
 	dim as any ptr oldPtr = destinationPtr->stringData
 	destinationPtr->length = IIF(length < destinationPtr->length, length, destinationPtr->length)
-	destinationPtr->size = destinationPtr->length
+	'destinationPtr->size = destinationPtr->length
 end sub
 
 sub FastMid(byref destination as string, byref source as byte ptr, start as uinteger, length as uinteger)
 	dim as fbString ptr destinationPtr = cast(fbString ptr, @destination)
-	if ( destinationPtr->size ) then deallocate destinationPtr->stringData
+	
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
-	destinationPtr->length = length
-	destinationPtr->size = length
-	destinationPtr->stringData = allocate(length +1)
-	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
-	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
+	if ( destinationPtr->size < length ) then 
+		if ( destinationPtr->size ) then deallocate destinationPtr->stringData
+		destinationPtr->length = length
+		destinationPtr->size = length
+		' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
+		' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
+		destinationPtr->stringData = allocate(length+1)
+	end if
+
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
 	'destinationPtr->stringData[length+1] = 0
 end sub
@@ -82,32 +87,30 @@ function isInString(byref target as string, query as byte) as boolean
 	return memchr( targetPtr->stringData, query, targetPtr->size ) <> 0
 end function
 
-function LongToUft8(byref codepoint as long) as string
-	dim result as string
-	
+sub LongToUft8(byref codepoint as long, byref result as string)	
 	if codePoint <= &h7F then
 		fastSpace(result, 1)
 		result[0] = codePoint
-		return result
 	endif
 	
 	if (&hD800 <= codepoint AND codepoint <= &hDFFF) OR _
 		(codepoint > &h10FFFD) then
-		return replacementChar
+		result = replacementChar
+		return
 	end if
 	
 	if (codepoint <= &h7FF) then
 		fastSpace(result, 2)
 		result[0] = &hC0 OR (codepoint SHR 6) AND &h1F 
 		result[1] = &h80 OR codepoint AND &h3F
-		return result
+		return
 	end if
 	if (codepoint <= &hFFFF) then
 		fastSpace(result, 3)
         result[0] = &hE0 OR codepoint SHR 12 AND &hF
         result[1] = &h80 OR codepoint SHR 6 AND &h3F
         result[2] = &h80 OR codepoint AND &h3F
-        return result
+        return
     end if
 	
 	fastSpace(result, 4)
@@ -116,10 +119,10 @@ function LongToUft8(byref codepoint as long) as string
 	result[2] = &h80 OR codepoint SHR 6 AND &h3F
 	result[3] = &h80 OR codepoint AND &h3F
     
-	return result
-end function
+	return
+end sub
 
-function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
+sub SurrogateToUtf8(surrogateA as long, surrogateB as long, byref result as string)
 	dim as long codepoint = 0
     if (&hD800 <= surrogateA and surrogateA <= &hDBFF) then
 		if (&hDC00 <= surrogateB and surrogateB <= &hDFFF) then
@@ -131,16 +134,14 @@ function SurrogateToUtf8(surrogateA as long, surrogateB as long) as string
 	
 	
 	if ( codePoint = 0 ) then
-		return replacementChar
+		result = replacementChar
 	end if
-	dim result as string 
 	FastSpace(result, 4)
 	result[0] = &hF0 OR codepoint SHR 18 AND &h7
 	result[1] = &h80 OR codepoint SHR 12 AND &h3F
 	result[2] = &h80 OR codepoint SHR 6 AND &h3F
 	result[3] = &h80 OR codepoint AND &h3F
-	return result
-end function
+end sub
 
 function areEqual(byref stringA as string, byref stringB as string) as boolean
 	dim as fbString ptr A = cast(fbString ptr, @stringA)
@@ -193,13 +194,13 @@ function DeEscapeString(byref escapedString as string) as boolean
 					if (&hD800 <= codepoint and codepoint <= &hDFFF) then
 						dim secondSurrogate as string = mid(escapedString, i+7+2, 4)
 						if (len(secondSurrogate) = 4) then
-							glyph = SurrogateToUtf8(codepoint, strtoull(secondSurrogate, 0, 16))
+							SurrogateToUtf8(codepoint, strtoull(secondSurrogate, 0, 16), glyph)
 							pad = 12 - len(glyph)
 						else
 							return false
 						end if
 					elseif (codepoint > 0 orElse sequence = "0000") then
-						glyph = LongToUft8(codepoint)
+						LongToUft8(codepoint, glyph)
 						pad = 6 - len(glyph)
 					end if
 					
