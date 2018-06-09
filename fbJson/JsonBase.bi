@@ -35,7 +35,7 @@ type JsonBase extends object
 		
 		declare operator LET(A as JsonBase)
 		
-		declare sub Parse(jsonString as string)
+		declare sub Parse(byref jsonString as string)
 			
 		declare function ContainsKey(byref key as string) as boolean
 		

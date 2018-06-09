@@ -48,11 +48,13 @@ sub FastCopy(byref destination as string, byref source as string)
 		destinationPtr->length = sourcePtr->length
 		destinationPtr->size = sourcePtr->length
 		destinationPtr->stringData = allocate(sourcePtr->length+1)
+		destinationPtr->stringData[sourcePtr->length] = 0
 	end if
 	
 	' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
 	' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
 	memcpy( destinationPtr->stringData, sourcePtr->stringData, destinationPtr->size)
+	
 end sub
 
 
@@ -69,15 +71,15 @@ sub FastMid(byref destination as string, byref source as byte ptr, start as uint
 	' Setting the length and size of the string, so the runtime knows how to handle it properly.
 	if ( destinationPtr->size < length ) then 
 		if ( destinationPtr->size ) then deallocate destinationPtr->stringData
-		destinationPtr->length = length
-		destinationPtr->size = length
+
 		' We allocate an extra byte here because FB tries to write into that extra byte when doing string copies.
 		' The more "correct" mitigation would be to allocate up to the next blocksize (32 bytes), but that's slow.
 		destinationPtr->stringData = allocate(length+1)
+		destinationPtr->stringData[length] = 0
 	end if
-
+	destinationPtr->length = length
+	destinationPtr->size = length
 	memcpy( destinationPtr->stringData, source+start, destinationPtr->size )
-	'destinationPtr->stringData[length+1] = 0
 end sub
 
 function isInString(byref target as string, query as byte) as boolean
@@ -329,4 +331,25 @@ function isValidDouble(byref value as string) as boolean
 	return not(valuePtr->length = 1 andAlso (value = "0"))
 end function
 
+
+sub FastTrimWhitespace(byref destination as string)
+	dim as uinteger start, i, strLen = len(destination)
+	if (strLen = 0) then return
+	
+	while start < strLen-1 andAlso destination[start] = 32 orElse destination[start] = 9 orElse destination[start] = 10  orElse destination[start] = 13
+		start += 1
+	wend
+	if start = strLen -1 then 
+		destination = ""
+		return
+	end if
+	
+	i = strLen -1
+	while i > 1 andAlso destination[i] = 32 orElse destination[i] = 9 orElse destination[i] = 10  orElse destination[i] = 13
+		i -= 1
+	wend
+	if (start = 0 and i = strLen-1) then return
+	
+	fastMid(destination, cast(byte ptr,strptr(destination)), start, i - start + 1)
+end sub
 end namespace
