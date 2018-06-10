@@ -346,7 +346,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					if (currentItem->_datatype = jsonObject) then
 						if (currentItem = 0 or currentItem->_parent = 0) then
 							this.setMalformed()
-							return
+							goto cleanup
 						end if
 						state = nestEnd
 						currentItem->AppendChild(child, true)
@@ -367,7 +367,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						end if
 						if (currentItem = 0 or currentItem->_parent = 0) then
 							this.setMalformed()
-							return
+							goto cleanup
 						end if
 						state = nestEnd
 						
@@ -436,7 +436,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			case valueTokenClosed, nestEnd
 				' because we already know how long the string we are going to parse is, we can skip if it's 0.
 
-				if ( valueEnd > 0 ) then
+				if ( valueEnd > 0 andAlso (child <> 0 or state = valueTokenClosed)) then
 					if (child = 0) then child = new JsonBase()
 					' The time saved with this is miniscule, but reliably measurable.
 					select case as const jsonstring[valueStart]
@@ -481,6 +481,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 							this._error = child->_error
 							delete child
 							child = 0
+							return 
 						else
 							currentItem->setErrorMessage(0, jsonstring, i+1)
 							goto cleanup
@@ -490,6 +491,12 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 							currentItem->SetMalformed()
 						end if
 						currentItem->AppendChild(child, true)
+					else
+						if (child->_parent = 0) then 
+							? valueStart, valueEnd
+							? state
+							delete child
+						end if
 					end if
 					valueEnd = 0
 					child = 0
