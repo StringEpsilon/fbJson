@@ -311,7 +311,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					if ( state = valueToken ) then
 						state = valueTokenClosed
 						if valueEnd = 0 then valueEnd = i
-					elseif ( state = nestEndHandled ) then
+					elseif ( state = nestEnd ) then
 						state = resetState
 					else 
 						currentItem->setErrorMessage(expectedKey, jsonstring, i)
@@ -344,7 +344,14 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					
 				case jsonToken.CurlyClose:
 					if (currentItem->_datatype = jsonObject) then
+						if (currentItem = 0 or currentItem->_parent = 0) then
+							this.setMalformed()
+							return
+						end if
 						state = nestEnd
+						currentItem->AppendChild(child, true)
+						
+						currentItem = currentItem->_parent
 					else
 						currentItem->setErrorMessage(arrayNotClosed, jsonstring, i)
 						goto cleanup
@@ -354,8 +361,18 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					if (currentItem->_datatype = jsonArray ) then
 						if state = valueToken andAlso valueEnd = 0 andAlso valueStart <> i then 
 							valueEnd = i
+							if (child = 0) then 
+								child = new jsonBase()
+							end if
+						end if
+						if (currentItem = 0 or currentItem->_parent = 0) then
+							this.setMalformed()
+							return
 						end if
 						state = nestEnd
+						
+						currentItem->AppendChild(child, true)
+						currentItem = currentItem->_parent
 					else
 						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
 						goto cleanup
@@ -457,41 +474,33 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 							child->setErrorMessage(invalidValue, jsonstring, i)
 					end select
 					
-					if (currentItem->_datatype <> jsonObject andAlso currentItem->_dataType <> jsonArray ) then
-						if (i = parseEnd and child->_datatype <> malformed) then
+					if (currentItem->_datatype = jsonNull ) then
+						if (i = parseEnd andAlso child->_datatype <> malformed) then
 							FastCopy(this._value, child->_value)
 							this._datatype = child->_datatype
 							this._error = child->_error
 							delete child
+							child = 0
 						else
 							currentItem->setErrorMessage(0, jsonstring, i+1)
 							goto cleanup
 						end if
-						child = 0
-					else
+					elseif (state = valueTokenClosed) then
 						if (child->_datatype = malformed) then
 							currentItem->SetMalformed()
 						end if
 						currentItem->AppendChild(child, true)
 					end if
 					valueEnd = 0
+					child = 0
 				end if
 				
-				if state = nestEnd then
-					if (currentItem = 0 or currentItem->_parent = 0) then
-						this.setMalformed()
-						return
-					end if
-					
-					currentItem = currentItem->_parent
-					state = nestEndHandled
-				else
+				if state <> nestEnd then
 					goto resetStateJump
 				end if
 		
 			case resetState:
 				resetStateJump:
-				valueEnd = 0
 				child = 0
 				if ( currentItem->_datatype = jsonArray ) then
 					state = valueToken

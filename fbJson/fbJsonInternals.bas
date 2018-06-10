@@ -43,7 +43,6 @@ enum parserState
 	valueToken = 3
 	valueTokenClosed = 4
 	nestEnd = 5
-	nestEndHandled
 	resetState
 end enum
 
