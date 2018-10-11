@@ -59,7 +59,7 @@ constructor JsonBase()
 end constructor
 
 constructor JsonBase(byref jsonString as string)
-	jsonString = trim(jsonString, any " "+chr(9,10) )
+	fbJsonInternal.FastTrimWhitespace(jsonstring)
 	this.Parse(strptr(jsonString), len(jsonstring)-1)
 end constructor
 
@@ -184,6 +184,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 		return
 	end if
 	
+	dim currentType as jsonDataType = -2
 	
 	' Objects we will work with:
 	dim currentItem as JsonBase ptr = @this
@@ -215,6 +216,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 			valueStart = 1
 			trimLeftActive = true
 			state = valueToken
+			currentType = -2
 		else
 			currentItem->setErrorMessage(arrayNotClosed, jsonstring, endIndex)
 			return
@@ -295,6 +297,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				case jsonToken.Colon:
 					if ( state = keyTokenClosed ) then 
 						state = valueToken
+						currentType = -2
 						trimLeftActive = true
 						valueStart = i+1
 					else
@@ -383,7 +386,7 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					' And most important: It's not slower if we have no whitespaces.
 					if ( state = valueToken ) then
 						if( trimLeftActive) then
-							valueStart += 1
+							valueStart = i+1
 						else
 							if valueEnd = 0 then valueEnd = i
 						end if
@@ -395,16 +398,53 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 						trimLeftActive = false
 						valueEnd = i
 					end if
-				case else:
+				case asc("n"),asc("-"),asc("e"),asc("t"),asc("r"),asc("u"),asc("l"),asc("f"),asc("a"),asc("s"), 48 to 57, asc("E"), asc("+"), asc(".")
+					select case currentType
+					case -2:
+						select case as const jsonString[i]:
+							case asc("n"):
+								currentType = jsonNull
+							case asc("t"), asc("f"):
+								currentType = jsonBool
+							case jsonToken.minus, 48 to 57:
+								currentType = jsonNumber
+							case else
+								currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+								goto cleanup
+						end select
+					case jsonNull
+						select case as const jsonString[i]:
+							case asc("u"):
+								if (jsonString[i-1] <> asc("n")) then
+									currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+									goto cleanup
+								end if
+							case asc("l"):
+								if (jsonString[i-2] <> asc("n") orElse jsonString[i-3] <> asc("n")) then
+									currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+									goto cleanup
+								end if
+							case else
+								currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+								goto cleanup
+						end select
+					end select
 					' If we are currently parsing values, add up the length and abort the trim-counting.
 					if ( state = valueToken andAlso valueEnd = 0 ) then
 						trimLeftActive = false
 					else
+						
 						currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
 						goto cleanup
 					end if
+				case else:
+					currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
+					goto cleanup
 			end select
-		else		
+		else
+			if (state = valueToken) then
+				currentType = jsonDataType.jsonString
+			end if
 			select case as const jsonString[i]
 				case 0 to 31
 					currentItem->setErrorMessage(unexpectedToken, jsonstring, i)
@@ -418,12 +458,6 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				case else
 					if (isEscaped) then isEscaped = false
 			end select
-			
-			if (i = parseEnd) then
-				currentItem->setErrorMessage(stringNotClosed, jsonstring, i+1)
-				goto cleanup 
-			end if
-			
 			continue for
 		end if	
 		
@@ -439,8 +473,8 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				if ( valueEnd > 0 andAlso (child <> 0 or state = valueTokenClosed)) then
 					if (child = 0) then child = new JsonBase()
 					' The time saved with this is miniscule, but reliably measurable.
-					select case as const jsonstring[valueStart]
-						case jsonToken.Quote
+					select case as const currentType
+						case jsonDataType.jsonString
 							FastMid(child->_value, jsonString, valuestart+1, valueEnd - valueStart-1)
 							child->_dataType = jsonDataType.jsonString
 							if ( isinstring(child->_value, jsonToken.backslash) <> 0 ) then 
@@ -449,20 +483,24 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 								end if
 							end if
 
-						case 110, 102, 116 ' n f t
+						case jsonNull
+							FastMid(child->_value, jsonString, valuestart, valueEnd - valueStart)
+							if (valueEnd - valueStart = 4) then
+								child->_dataType = jsonNull
+							else
+								child->setErrorMessage(invalidValue, jsonstring, valueStart)
+							end if
+						case jsonBool
 							' Nesting "select-case" isn't pretty, but fast. Saw this first in the .net compiler.
 							FastMid(child->_value, jsonString, valuestart, valueEnd - valueStart)
-							select case child->_value
-								case "null"
-									child->_dataType = jsonNull
-								case "true", "false"
-									child->_dataType = jsonBool
-								case else
-									' Invalid value or missing quotation marks
-									child->setErrorMessage(invalidValue, jsonstring, valueStart)
-							end select
+							if (child->_value <> "true" andAlso child->_value <> "false") then
+								' Invalid value or missing quotation marks
+								child->setErrorMessage(invalidValue, jsonstring, valueStart)							
+							else
+								child->_datatype = jsonBool
+							end if
 							
-						case jsonToken.minus, 48 to 57:
+						case jsonNumber
 							fastMid(child->_value, jsonString, valuestart, valueEnd - valueStart)
 							if ( isValidDouble(child->_value) ) then
 								child->_dataType = jsonDataType.jsonNumber
@@ -511,15 +549,21 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 				child = 0
 				if ( currentItem->_datatype = jsonArray ) then
 					state = valueToken
+					currentType = -2
 					valueStart = i+1
+					valueEnd = 0
 					trimLeftActive = true
 				else
-					trimLeftActive = false
+					currentType = -2
 					state = none
 				end if
 		end select
 	next
 	
+	if (isStringOpen) then
+		currentItem->setErrorMessage(stringNotClosed, jsonstring, endIndex)
+		goto cleanup 
+	end if
 	if (state = keyTokenClosed) then
 		currentItem->setErrorMessage(expectedKey, jsonstring, endIndex)
 		goto cleanup
