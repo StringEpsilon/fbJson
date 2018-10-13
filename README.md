@@ -2,7 +2,7 @@
 
 A small JSON library written in FreeBASIC.
 
-Latest stable is 0.20.0 
+Latest stable is 1.0.1
 
 ## License
 

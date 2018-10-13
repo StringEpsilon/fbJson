@@ -240,11 +240,11 @@ function isValidDouble(byref value as string) as boolean
 
 	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
 	
-	if (value[0] = 48 ) then
+	if (value[0] = 48) then
 		if ( valuePtr->length > 2) then
 			select case value
 				' Shorthands for "0" that won't pass this validation otherwise.
-				case  "0e1","0e+1","0E1", "0E+1"
+				case  "0e1","0e+1","0E1", "0E+1", "0e-1", "0E-1"
 					value = "0"
 					return true
 				end 
@@ -260,7 +260,6 @@ function isValidDouble(byref value as string) as boolean
 	select case as const value[0]
 		case 48: ' 0. No leading zeroes allowed.
 			if (valuePtr->length > 1 and value[1] <> 101 and value[1] <> 69  and value[1] <> 46 ) then
-				
 				return false
 			end if
 		case 49 to 57 ' 1 - 9
@@ -271,6 +270,13 @@ function isValidDouble(byref value as string) as boolean
 			return false
 		case 45: ' -
 			sign += 1
+			if (valuePtr->length = 1) then
+				return false
+			elseif (valuePtr->length >= 3) then
+				if (value[1] = 48 andAlso (value[2] >= 48 and value[2] <= 57)) then
+					return false
+				end if
+			end if
 		case else
 			return false
 	end select
@@ -278,17 +284,7 @@ function isValidDouble(byref value as string) as boolean
 	
 	for i as integer = 1 to valuePtr->length-1
 		select case as const value[i]
-			case 48
-				' Edgecase: "-01"
-				if (i = 1 ) then
-				
-					if (value[0] = 45 and i < valuePtr->length-1) then
-						if (value[i+1] >= 48 and value[i+1] <= 57) then
-							return false
-						end if
-					end if
-				end if
-			case 49,50,51,52,53,54,55,56,57 ' 1 - 9
+			case 48 to 57 ' 0 - 9
 				' do nothing
 			case 101, 69: 'e, E
 				if (i = valuePtr->length-1) then
@@ -302,7 +298,7 @@ function isValidDouble(byref value as string) as boolean
 				end if
 				exponent += 1
 			case 46: ' .
-				if (i =  valuePtr->length-1) then
+				if (i = valuePtr->length-1) then
 					return false
 				end if
 				if (period > 0 or exponent > 0 ) then
@@ -314,7 +310,7 @@ function isValidDouble(byref value as string) as boolean
 				if ((value[i-1] <> 101 and value[i-1] <> 69)) then
 					return false
 				end if
-				if (i =  valuePtr->length-1) then
+				if (i = valuePtr->length-1) then
 					return false
 				end if
 			
