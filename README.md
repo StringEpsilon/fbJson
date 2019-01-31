@@ -15,6 +15,7 @@ Past 1.0 / nice to have:
 * [ ] More quality of life functionality
 	* [ ] Datatype specific properties
 * [ ] Write properly escaped json on toString() call.
+* [ ] Make toString() fast(er)
 
 ## fbJson specifics
 
@@ -124,14 +125,36 @@ Returns true if the item is an object that contains the given key.
 `jsonItem.ToString() as string` 
 Creates a string representation of the Item and all it's children.
 
-## Compiling
+## Performance and compiler options
 
-If you really need a fast JSON parser, compiling fbJson with these options will result in a moderate performance boost. 
-In my usual benchmark, I get ~30% faster execution of repeatatly parsing a moderate sized file.
+I unscientifically tested how fast fbJson parses through this monstrosity of a JSON file:
+
+https://github.com/zemirco/sf-city-lots-json/blob/master/citylots.json (181 mb)
+
+On my desktop machine (AMD Ryzen 7 1700X), I get the following results:
+
+| Compiler options  | parsing time (s) |
+| ------------- | ------------- |
+| fbc "%f"  | 6.33  |
+| fbc "%f" -gen GCC -Wc -O1 | ~4.01  |
+
+Test-setup is just loading the file with open and get# and this loop:
 
 ```
-fbc -gen GCC -Wc -O1 fbJson.bas
+dim as double start = timer
+for i as uinteger = 1 to 30
+	dim item as jsonItem = jsonItem(jsonFile)
+next
+print (timer - start) / 30
 ```
+
+Setup:
+
+* AMD Ryzen 7 1700X 
+* FreeBASIC Compiler - Version 1.06.0 (11-18-2017) (64bit)
+* glibc 2.28
+* Linux 4.20.4 (64bit)
+* fbJson commit 6ef899d296
 
 ## Design
 
