@@ -239,31 +239,28 @@ function isValidDouble(byref value as string) as boolean
 	
 
 	dim as fbString ptr valuePtr = cast(fbString ptr, @value)
-	
-	if (value[0] = 48) then
-		if ( valuePtr->length > 2) then
-			select case value
-				' Shorthands for "0" that won't pass this validation otherwise.
-				case  "0e1","0e+1","0E1", "0E+1", "0e-1", "0E-1"
-					value = "0"
-					return true
-				end 
-			end select
-		elseif ( valuePtr->length = 1) then
-			return true
-		end if
-	end if
-	
 	dim as integer period = 0, exponent = 0, sign = 0
 	
 	' Yay for manual loop-unrolling.
 	select case as const value[0]
 		case 48: ' 0. No leading zeroes allowed.
-			if (valuePtr->length > 1 and value[1] <> 101 and value[1] <> 69  and value[1] <> 46 ) then
+			if ( valuePtr->length > 2) then
+				select case value
+					' Shorthands for "0" that won't pass this validation otherwise.
+					case  "0e1","0e+1","0E1", "0E+1", "0e-1", "0E-1"
+						value = "0"
+						return true
+					end 
+				end select
+			elseif ( valuePtr->length = 1) then
+				return true
+			elseif (valuePtr->length > 1 and value[1] <> 101 and value[1] <> 69  and value[1] <> 46 ) then
 				return false
 			end if
 		case 49 to 57 ' 1 - 9
-			' do nothing
+			if (valuePtr->length = 1) then
+				return true
+			end if
 		case 101, 69: 'e, E
 			return false
 		case 46: ' .
@@ -319,8 +316,18 @@ function isValidDouble(byref value as string) as boolean
 		end select
 	next
 	
-	if (exponent = 0 and period = 0 and (sign = 0 orElse valuePtr->length > 1) and valuePtr->length < 309) then
-		return true
+	if (exponent = 0 and valuePtr->length < 307) then
+		if (period = 0 and sign = 0) then
+			return true
+		end if
+		' >=3 because the smalles possible is "0.0"
+		if (period = 1 and sign = 0 and valuePtr->length >= 3) then
+			return true
+		end if
+		' >=4 because the smallest possible is "-0.0"
+		if (period = 1 and sign = 1 and valuePtr->length >= 4) then
+			return true
+		end if
 	end if
 	value = str(cdbl(value))
 	return not(valuePtr->length = 1 andAlso (value = "0"))
