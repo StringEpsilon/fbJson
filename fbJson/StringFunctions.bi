@@ -246,11 +246,12 @@ function isValidDouble(byref value as string) as boolean
 		case 48: ' 0. No leading zeroes allowed.
 			if ( valuePtr->length > 2) then
 				select case value
-					' Shorthands for "0" that won't pass this validation otherwise.
-					case  "0e1","0e+1","0E1", "0E+1", "0e-1", "0E-1"
-						value = "0"
-						return true
-					end 
+				' Shorthands for "0" that won't pass this validation otherwise.
+				case  "0e1","0e+1","0E1", "0E+1", "0e-1", "0E-1"
+					value = "0"
+					return true
+				case else
+					return false
 				end select
 			elseif ( valuePtr->length = 1) then
 				return true
