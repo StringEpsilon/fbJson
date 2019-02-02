@@ -362,8 +362,8 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 							
 				case jsonToken.SquareClose:
 					if (currentItem->_datatype = jsonArray ) then
-						if state = valueToken andAlso valueEnd = 0 andAlso valueStart <> i then 
-							valueEnd = i
+						if state = valueToken andAlso valueStart <> i then 
+							if (valueEnd = 0) then valueEnd = i
 							if (child = 0) then 
 								child = new jsonBase()
 							end if
