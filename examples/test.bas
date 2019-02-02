@@ -284,7 +284,7 @@ assertEqual(jsonNumber, item.Datatype)
 assertEqual("-12.3456789", item.Value)
 
 item = jsonItem("[12.00000000]")
-assertEqual("12", item[0].value)
+assertEqual("12.00000000", item[0].value)
 assertEqual(jsonNumber, item[0].Datatype)
 
 item = jsonItem("0.01")
@@ -409,9 +409,8 @@ for i as integer = 0 to 4
 	assertEqual(jsonString, item.Datatype)
 next
 
-
-
-
-    
+item = jsonItem("[ ""1"", ""2"", ""3"", ""4"",""5""]")
+assertEqual(item.count, 5)
+ 
 
 
