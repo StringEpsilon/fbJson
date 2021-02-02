@@ -347,6 +347,10 @@ sub JsonBase.Parse(jsonString as ubyte ptr, endIndex as integer)
 					
 				case jsonToken.CurlyClose:
 					if (currentItem->_datatype = jsonObject) then
+						if state = valueToken andAlso valueEnd = 0 andAlso valueStart <> i then 
+							valueEnd = i
+						end if
+						
 						if (currentItem = 0 or currentItem->_parent = 0) then
 							this.setMalformed()
 							goto cleanup
