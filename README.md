@@ -46,7 +46,7 @@ flag. Then you only need the fbJsonBase.bi and fbJsonItem.bi along with the DLL.
 You can either give the JSON input via the constructor:
 
 ```
-dim item as jsonItem = JsomItem("{}")
+dim item as jsonItem = JsonItem("{}")
 ```
 
 Or you can create the instance first and then use .Parse().
@@ -62,7 +62,7 @@ You could also overwrite instances with the constructor like below, but that com
 ```
 dim item as jsonItem
 ' some code ...
-item = JsomItem("{}")
+item = JsonItem("{}")
 ```
 
 ## Accessing elements
